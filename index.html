@@ -9,7 +9,7 @@
 <title>FarmaCasa – La teva farmaciola</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 
 <style>
   :root {
@@ -1014,52 +1014,86 @@ function setFilter(f, el) {
 // ─── SCANNER ───
 async function openScanner() {
   document.getElementById('scanner-modal').classList.add('active');
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-    });
-    const video = document.getElementById('scanner-video');
-    video.srcObject = stream;
-    video.play();
-    scannerActive = true;
-    startBarcodeScanning(video);
-  } catch (err) {
-    showToast('No s\'ha pogut accedir a la càmera. Usa "Afegir manualment".', 'error');
-    closeScanner();
-  }
-}
-
-function closeScanner() {
-  scannerActive = false;
+  scannerActive = true;
+  // Neteja el vídeo anterior si n'hi ha
   const video = document.getElementById('scanner-video');
   if (video.srcObject) {
     video.srcObject.getTracks().forEach(t => t.stop());
     video.srcObject = null;
   }
-  if (codeReader) {
-    try { codeReader.reset(); } catch(e){}
+  startBarcodeScanning(video);
+}
+
+function closeScanner() {
+  scannerActive = false;
+  try { Quagga.stop(); } catch(e) {}
+  const video = document.getElementById('scanner-video');
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
   }
   document.getElementById('scanner-modal').classList.remove('active');
 }
 
 function startBarcodeScanning(video) {
-  // Use ZXing
-  try {
-    codeReader = new ZXing.BrowserBarcodeReader();
-    codeReader.decodeFromVideoElement(video, (result, err) => {
-      if (result && scannerActive) {
+  // QuaggaJS — molt millor per EAN-13, EAN-8, ITF-14 (codis de medicaments espanyols)
+  Quagga.init({
+    inputStream: {
+      name: 'Live',
+      type: 'LiveStream',
+      target: document.getElementById('video-container'),
+      constraints: {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+    },
+    decoder: {
+      readers: [
+        'ean_reader',        // EAN-13 (el més comú a medicaments espanyols)
+        'ean_8_reader',      // EAN-8
+        'code_128_reader',   // Code 128
+        'itf_reader',        // ITF-14
+        'code_39_reader',    // Code 39
+        'upc_reader',        // UPC-A
+      ],
+      multiple: false
+    },
+    locate: true,
+    numOfWorkers: 2,
+    frequency: 15,
+  }, (err) => {
+    if (err) {
+      console.error('Quagga init error:', err);
+      closeScanner();
+      openManualForm(null);
+      showToast('Escàner no disponible. Afegeix manualment.', 'warning');
+      return;
+    }
+    Quagga.start();
+  });
+
+  let lastCode = null;
+  let detectionCount = 0;
+
+  Quagga.onDetected((result) => {
+    if (!scannerActive) return;
+    const code = result.codeResult.code;
+    // Requerim 2 deteccions del mateix codi per evitar falsos positius
+    if (code === lastCode) {
+      detectionCount++;
+      if (detectionCount >= 2) {
         scannerActive = false;
-        const barcode = result.getText();
+        // Feedback vibració
+        if (navigator.vibrate) navigator.vibrate(100);
         closeScanner();
-        lookupMedicine(barcode);
+        lookupMedicine(code);
       }
-    });
-  } catch(e) {
-    // Fallback: just open form
-    closeScanner();
-    openManualForm(null);
-    showToast('Escàner no disponible. Afegeix manualment.', 'warning');
-  }
+    } else {
+      lastCode = code;
+      detectionCount = 1;
+    }
+  });
 }
 
 // ─── MEDICINE LOOKUP ───
