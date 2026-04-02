@@ -9,7 +9,7 @@
 <title>FarmaCasa – La teva farmaciola</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 
 <style>
   :root {
@@ -730,8 +730,8 @@
 <main>
   <!-- SCAN HERO -->
   <div class="scan-hero">
-    <button class="scan-btn" onclick="openScanner()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+    <button class="scan-btn" onclick="openNativeScanner()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:22px;height:22px;flex-shrink:0;">
         <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
         <line x1="7" y1="12" x2="17" y2="12" stroke-width="3"/>
         <line x1="7" y1="9" x2="7" y2="15" stroke-width="1.5"/>
@@ -741,7 +741,13 @@
       </svg>
       Escanejar codi de barres
     </button>
-    <button class="manual-btn" onclick="openManualForm(null)">+ Afegir manualment</button>
+    <input type="text" id="native-barcode-input" inputmode="none" autocomplete="off"
+      style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;"
+      onchange="handleNativeScan(this.value)">
+    <div style="display:flex;gap:8px;width:100%;">
+      <button class="manual-btn" style="flex:1;" onclick="openScanner()">&#128247; Càmera web</button>
+      <button class="manual-btn" style="flex:1;" onclick="openManualForm(null)">&#9999; Manual</button>
+    </div>
   </div>
 
   <!-- ALERTS -->
@@ -779,7 +785,7 @@
         <div class="scan-frame"></div>
       </div>
     </div>
-    <p class="scan-hint">Col·loca el codi de barres dins del requadre</p>
+    <p class="scan-hint">Col·loca el codi <strong style="color:var(--accent);">DataMatrix</strong> (quadrat de punts) dins del requadre · Apropa el mòbil fins que es vegi net</p>
   </div>
 </div>
 
@@ -1011,6 +1017,55 @@ function setFilter(f, el) {
   renderList();
 }
 
+// ─── NATIVE BARCODE SCANNER (Android) ───
+function openNativeScanner() {
+  showBarcodeInputDialog();
+}
+
+function showBarcodeInputDialog() {
+  const overlay = document.createElement('div');
+  overlay.id = 'scan-overlay-dialog';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:24px;width:100%;max-width:360px;">
+      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;margin-bottom:8px;color:var(--text);">&#128247; Escanejar codi de barres</div>
+      <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:20px;line-height:1.6;">
+        Els medicaments espanyols usen codi <strong style="color:var(--accent);">DataMatrix</strong> (quadrat de punts negres, no el codi de barres).<br><br>
+        <strong style="color:var(--accent);">Opció A</strong> — Usa <strong>Google Lens</strong>: apunta al quadrat DataMatrix, copia el text que detecta i enganxa'l aquí.<br><br>
+        <strong style="color:var(--accent);">Opció B</strong> — Prova la càmera integrada (necessita bona llum).
+      </div>
+      <input type="tel" id="manual-code-input" placeholder="Enganxa el codi aquí (ex: 8470001234567)"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:0.95rem;padding:14px;outline:none;font-family:monospace;margin-bottom:12px;box-sizing:border-box;">
+      <button onclick="confirmManualCode()"
+        style="width:100%;background:linear-gradient(135deg,var(--accent),#00a8ff);border:none;border-radius:10px;color:#07111f;font-family:Syne,sans-serif;font-weight:700;font-size:0.95rem;padding:14px;cursor:pointer;margin-bottom:8px;">
+        &#128269; Cercar medicament
+      </button>
+      <button onclick="document.getElementById('scan-overlay-dialog').remove();openScanner();"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:0.85rem;padding:12px;cursor:pointer;margin-bottom:8px;">
+        &#128247; Càmera web (experimental)
+      </button>
+      <button onclick="document.getElementById('scan-overlay-dialog').remove();"
+        style="width:100%;background:transparent;border:none;color:var(--text-muted);font-size:0.8rem;padding:8px;cursor:pointer;">
+        Cancel&#183;lar
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('manual-code-input')?.focus(), 150);
+}
+
+function confirmManualCode() {
+  const val = document.getElementById('manual-code-input')?.value?.trim();
+  if (!val || val.length < 4) { showToast('Introdueix un codi vàlid', 'error'); return; }
+  document.getElementById('scan-overlay-dialog')?.remove();
+  lookupMedicine(val);
+}
+
+function handleNativeScan(value) {
+  if (!value) return;
+  lookupMedicine(value);
+  document.getElementById('native-barcode-input').value = '';
+}
+
 // ─── SCANNER ───
 async function openScanner() {
   document.getElementById('scanner-modal').classList.add('active');
@@ -1026,7 +1081,10 @@ async function openScanner() {
 
 function closeScanner() {
   scannerActive = false;
-  try { Quagga.stop(); } catch(e) {}
+  if (codeReader) {
+    try { codeReader.reset(); } catch(e) {}
+    codeReader = null;
+  }
   const video = document.getElementById('scanner-video');
   if (video.srcObject) {
     video.srcObject.getTracks().forEach(t => t.stop());
@@ -1036,68 +1094,73 @@ function closeScanner() {
 }
 
 function startBarcodeScanning(video) {
-  // QuaggaJS — molt millor per EAN-13, EAN-8, ITF-14 (codis de medicaments espanyols)
-  Quagga.init({
-    inputStream: {
-      name: 'Live',
-      type: 'LiveStream',
-      target: document.getElementById('video-container'),
-      constraints: {
-        facingMode: 'environment',
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      },
-    },
-    decoder: {
-      readers: [
-        'ean_reader',        // EAN-13 (el més comú a medicaments espanyols)
-        'ean_8_reader',      // EAN-8
-        'code_128_reader',   // Code 128
-        'itf_reader',        // ITF-14
-        'code_39_reader',    // Code 39
-        'upc_reader',        // UPC-A
-      ],
-      multiple: false
-    },
-    locate: true,
-    numOfWorkers: 2,
-    frequency: 15,
-  }, (err) => {
-    if (err) {
-      console.error('Quagga init error:', err);
-      closeScanner();
-      openManualForm(null);
-      showToast('Escàner no disponible. Afegeix manualment.', 'warning');
-      return;
-    }
-    Quagga.start();
-  });
+  // ZXing suporta DataMatrix (codi dels medicaments espanyols per serialització EU)
+  try {
+    const hints = new Map();
+    // Formats prioritzats: DataMatrix primer, després codis de barres habituals
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+      ZXing.BarcodeFormat.DATA_MATRIX,   // ✅ Medicaments EU (serialització)
+      ZXing.BarcodeFormat.QR_CODE,
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.ITF,
+    ]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
 
-  let lastCode = null;
-  let detectionCount = 0;
+    codeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
 
-  Quagga.onDetected((result) => {
-    if (!scannerActive) return;
-    const code = result.codeResult.code;
-    // Requerim 2 deteccions del mateix codi per evitar falsos positius
-    if (code === lastCode) {
-      detectionCount++;
-      if (detectionCount >= 2) {
+    codeReader.decodeFromVideoElement(video, (result, err) => {
+      if (result && scannerActive) {
+        const raw = result.getText();
+        // DataMatrix de medicaments espanyols conté: 01+GTIN + 17+data + 10+lot + 21+nº sèrie
+        // Extraiem el codi CN (GTIN) si és un DataMatrix farmacèutic
+        const parsed = parseDataMatrix(raw);
         scannerActive = false;
-        // Feedback vibració
-        if (navigator.vibrate) navigator.vibrate(100);
+        if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
         closeScanner();
-        lookupMedicine(code);
+        lookupMedicine(parsed.cn || raw, parsed);
       }
-    } else {
-      lastCode = code;
-      detectionCount = 1;
+    });
+  } catch(e) {
+    console.error(e);
+    closeScanner();
+    showBarcodeInputDialog();
+    showToast('Escàner no disponible. Introdueix el codi manualment.', 'warning');
+  }
+}
+
+// Parseja el DataMatrix farmacèutic (format GS1-128 / IDMP)
+// Estructura: )>0601{GTIN}17{YYYYMMDD}10{LOT}21{SERIAL}
+function parseDataMatrix(raw) {
+  const result = { raw, cn: null, expiry: null, lot: null, serial: null };
+  try {
+    // Neteja caràcters de control GS1
+    const clean = raw.replace(/[]/g, '|').replace(/\)>06\|?/,'');
+    const parts = clean.split('|');
+    for (const part of parts) {
+      if (part.startsWith('01') && part.length >= 16) {
+        // GTIN-14: 01 + 14 digits. CN espanyol és els últims 7 dígits
+        const gtin = part.substring(2, 16);
+        result.cn = gtin.replace(/^0+/, ''); // treu zeros inicials
+      } else if (part.startsWith('17') && part.length >= 8) {
+        // Data caducitat: YYMMDD
+        const d = part.substring(2, 8);
+        const year = '20' + d.substring(0,2);
+        const month = d.substring(2,4);
+        result.expiry = year + '-' + month;
+      } else if (part.startsWith('10')) {
+        result.lot = part.substring(2);
+      } else if (part.startsWith('21')) {
+        result.serial = part.substring(2);
+      }
     }
-  });
+  } catch(e) {}
+  return result;
 }
 
 // ─── MEDICINE LOOKUP ───
-async function lookupMedicine(barcode) {
+async function lookupMedicine(barcode, dmParsed = null) {
   document.getElementById('lookup-modal').classList.add('active');
   document.getElementById('lookup-barcode-text').textContent = barcode;
 
@@ -1160,6 +1223,9 @@ async function lookupMedicine(barcode) {
     document.getElementById('f-name').value = found.name || '';
     document.getElementById('f-principle').value = found.principle || '';
     document.getElementById('f-barcode').value = barcode;
+    // Si ve d'un DataMatrix farmacèutic, pre-omplem data caducitat i lot
+    if (dmParsed?.expiry) document.getElementById('f-expiry').value = dmParsed.expiry;
+    if (dmParsed?.lot) document.getElementById('f-notes').value = (document.getElementById('f-notes').value ? document.getElementById('f-notes').value + ' | ' : '') + 'Lot: ' + dmParsed.lot;
 
     if (found.image) {
       setFormPhoto(found.image);
