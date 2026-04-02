@@ -173,6 +173,9 @@
   #scanner-video {
     width: 100%; height: 100%;
     object-fit: cover;
+    display: block;
+    background: #000;
+    transform: translateZ(0); /* força GPU rendering, evita pantalla negra */
   }
 
   .scan-overlay {
@@ -1070,17 +1073,40 @@ function handleNativeScan(value) {
 async function openScanner() {
   document.getElementById('scanner-modal').classList.add('active');
   scannerActive = true;
-  // Neteja el vídeo anterior si n'hi ha
+
   const video = document.getElementById('scanner-video');
   if (video.srcObject) {
     video.srcObject.getTracks().forEach(t => t.stop());
     video.srcObject = null;
   }
-  startBarcodeScanning(video);
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        focusMode: { ideal: 'continuous' }
+      },
+      audio: false
+    });
+    video.srcObject = stream;
+    video.setAttribute('playsinline', true);
+    video.setAttribute('autoplay', true);
+    video.muted = true;
+    await video.play();
+    startBarcodeScanning(video);
+  } catch(err) {
+    console.error('Camera error:', err);
+    closeScanner();
+    showToast('Error de càmera: ' + err.message, 'error');
+    showBarcodeInputDialog();
+  }
 }
 
 function closeScanner() {
   scannerActive = false;
+  if (window._scanFrameId) { cancelAnimationFrame(window._scanFrameId); window._scanFrameId = null; }
   if (codeReader) {
     try { codeReader.reset(); } catch(e) {}
     codeReader = null;
@@ -1094,12 +1120,10 @@ function closeScanner() {
 }
 
 function startBarcodeScanning(video) {
-  // ZXing suporta DataMatrix (codi dels medicaments espanyols per serialització EU)
   try {
     const hints = new Map();
-    // Formats prioritzats: DataMatrix primer, després codis de barres habituals
     hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.DATA_MATRIX,   // ✅ Medicaments EU (serialització)
+      ZXing.BarcodeFormat.DATA_MATRIX,
       ZXing.BarcodeFormat.QR_CODE,
       ZXing.BarcodeFormat.EAN_13,
       ZXing.BarcodeFormat.EAN_8,
@@ -1110,11 +1134,10 @@ function startBarcodeScanning(video) {
 
     codeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
 
-    codeReader.decodeFromVideoElement(video, (result, err) => {
+    // Usem decodeFromStream per no interferir amb el srcObject ja assignat
+    codeReader.decodeFromStream(video.srcObject, video, (result, err) => {
       if (result && scannerActive) {
         const raw = result.getText();
-        // DataMatrix de medicaments espanyols conté: 01+GTIN + 17+data + 10+lot + 21+nº sèrie
-        // Extraiem el codi CN (GTIN) si és un DataMatrix farmacèutic
         const parsed = parseDataMatrix(raw);
         scannerActive = false;
         if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
@@ -1123,11 +1146,55 @@ function startBarcodeScanning(video) {
       }
     });
   } catch(e) {
-    console.error(e);
-    closeScanner();
-    showBarcodeInputDialog();
-    showToast('Escàner no disponible. Introdueix el codi manualment.', 'warning');
+    console.error('ZXing error:', e);
+    // Fallback: canvas loop manual
+    startCanvasScanning(video);
   }
+}
+
+// Fallback: llegim frames manualment amb canvas i ZXing
+function startCanvasScanning(video) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.DATA_MATRIX,
+    ZXing.BarcodeFormat.QR_CODE,
+    ZXing.BarcodeFormat.EAN_13,
+    ZXing.BarcodeFormat.EAN_8,
+    ZXing.BarcodeFormat.CODE_128,
+  ]);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  const reader = new ZXing.BrowserMultiFormatReader(hints);
+
+  let frameId;
+  async function tick() {
+    if (!scannerActive) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+        const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+        const result = reader.decode(binaryBitmap);
+        if (result && scannerActive) {
+          const raw = result.getText();
+          const parsed = parseDataMatrix(raw);
+          scannerActive = false;
+          if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+          closeScanner();
+          lookupMedicine(parsed.cn || raw, parsed);
+          return;
+        }
+      } catch(e) { /* no detectat, continuem */ }
+    }
+    frameId = requestAnimationFrame(tick);
+  }
+  frameId = requestAnimationFrame(tick);
+  // Guardem frameId per poder cancel·lar
+  window._scanFrameId = frameId;
 }
 
 // Parseja el DataMatrix farmacèutic (format GS1-128 / IDMP)
