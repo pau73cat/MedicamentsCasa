@@ -733,7 +733,7 @@
 <main>
   <!-- SCAN HERO -->
   <div class="scan-hero">
-    <button class="scan-btn" onclick="openNativeScanner()">
+    <button class="scan-btn" onclick="openScanner()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:22px;height:22px;flex-shrink:0;">
         <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
         <line x1="7" y1="12" x2="17" y2="12" stroke-width="3"/>
@@ -742,15 +742,9 @@
         <line x1="11" y1="9" x2="11" y2="15" stroke-width="1.5"/>
         <line x1="14" y1="9" x2="14" y2="15" stroke-width="1.5"/>
       </svg>
-      Escanejar codi de barres
+      Escanejar codi DataMatrix
     </button>
-    <input type="text" id="native-barcode-input" inputmode="none" autocomplete="off"
-      style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;"
-      onchange="handleNativeScan(this.value)">
-    <div style="display:flex;gap:8px;width:100%;">
-      <button class="manual-btn" style="flex:1;" onclick="openScanner()">&#128247; Càmera web</button>
-      <button class="manual-btn" style="flex:1;" onclick="openManualForm(null)">&#9999; Manual</button>
-    </div>
+    <button class="manual-btn" onclick="openManualForm(null)">+ Afegir manualment</button>
   </div>
 
   <!-- ALERTS -->
@@ -1161,54 +1155,6 @@ function setFilter(f, el) {
   renderList();
 }
 
-// ─── NATIVE BARCODE SCANNER (Android) ───
-function openNativeScanner() {
-  showBarcodeInputDialog();
-}
-
-function showBarcodeInputDialog() {
-  const overlay = document.createElement('div');
-  overlay.id = 'scan-overlay-dialog';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;padding:20px;';
-  overlay.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:24px;width:100%;max-width:360px;">
-      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;margin-bottom:8px;color:var(--text);">&#128247; Escanejar codi de barres</div>
-      <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:20px;line-height:1.6;">
-        Els medicaments espanyols usen codi <strong style="color:var(--accent);">DataMatrix</strong> (quadrat de punts negres, no el codi de barres).<br><br>
-        <strong style="color:var(--accent);">Opció A</strong> — Usa <strong>Google Lens</strong>: apunta al quadrat DataMatrix, copia el text que detecta i enganxa'l aquí.<br><br>
-        <strong style="color:var(--accent);">Opció B</strong> — Prova la càmera integrada (necessita bona llum).
-      </div>
-      <input type="tel" id="manual-code-input" placeholder="Enganxa el codi aquí (ex: 8470001234567)"
-        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:0.95rem;padding:14px;outline:none;font-family:monospace;margin-bottom:12px;box-sizing:border-box;">
-      <button onclick="confirmManualCode()"
-        style="width:100%;background:linear-gradient(135deg,var(--accent),#00a8ff);border:none;border-radius:10px;color:#07111f;font-family:Syne,sans-serif;font-weight:700;font-size:0.95rem;padding:14px;cursor:pointer;margin-bottom:8px;">
-        &#128269; Cercar medicament
-      </button>
-      <button onclick="document.getElementById('scan-overlay-dialog').remove();openScanner();"
-        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:0.85rem;padding:12px;cursor:pointer;margin-bottom:8px;">
-        &#128247; Càmera web (experimental)
-      </button>
-      <button onclick="document.getElementById('scan-overlay-dialog').remove();"
-        style="width:100%;background:transparent;border:none;color:var(--text-muted);font-size:0.8rem;padding:8px;cursor:pointer;">
-        Cancel&#183;lar
-      </button>
-    </div>`;
-  document.body.appendChild(overlay);
-  setTimeout(() => document.getElementById('manual-code-input')?.focus(), 150);
-}
-
-function confirmManualCode() {
-  const val = document.getElementById('manual-code-input')?.value?.trim();
-  if (!val || val.length < 4) { showToast('Introdueix un codi vàlid', 'error'); return; }
-  document.getElementById('scan-overlay-dialog')?.remove();
-  lookupMedicine(val);
-}
-
-function handleNativeScan(value) {
-  if (!value) return;
-  lookupMedicine(value);
-  document.getElementById('native-barcode-input').value = '';
-}
 
 // ─── SCANNER ───
 async function openScanner() {
@@ -1226,23 +1172,129 @@ async function openScanner() {
       video: {
         facingMode: { ideal: 'environment' },
         width: { ideal: 1280 },
-        height: { ideal: 720 },
-        focusMode: { ideal: 'continuous' }
+        height: { ideal: 720 }
       },
       audio: false
     });
     video.srcObject = stream;
     video.setAttribute('playsinline', true);
-    video.setAttribute('autoplay', true);
     video.muted = true;
     await video.play();
     startBarcodeScanning(video);
   } catch(err) {
-    console.error('Camera error:', err);
     closeScanner();
-    showToast('Error de càmera: ' + err.message, 'error');
-    showBarcodeInputDialog();
+    showToast('Error de càmera: ' + (err.message || err), 'error');
   }
+}
+
+function closeScanner() {
+  scannerActive = false;
+  if (window._scanFrameId) { cancelAnimationFrame(window._scanFrameId); window._scanFrameId = null; }
+  if (codeReader) {
+    try { codeReader.reset(); } catch(e) {}
+    codeReader = null;
+  }
+  const video = document.getElementById('scanner-video');
+  if (video.srcObject) {
+    const track = video.srcObject.getVideoTracks()[0];
+    if (track && flashOn) {
+      try { track.applyConstraints({ advanced: [{ torch: false }] }); } catch(e) {}
+    }
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+  }
+  resetFlash();
+  document.getElementById('scanner-modal').classList.remove('active');
+}
+
+function startBarcodeScanning(video) {
+  try {
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+      ZXing.BarcodeFormat.DATA_MATRIX,
+      ZXing.BarcodeFormat.QR_CODE,
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.ITF,
+    ]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    codeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
+    codeReader.decodeFromStream(video.srcObject, video, (result, err) => {
+      if (result && scannerActive) {
+        const raw = result.getText();
+        const parsed = parseDataMatrix(raw);
+        scannerActive = false;
+        if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+        closeScanner();
+        lookupMedicine(parsed.cn || raw, parsed);
+      }
+    });
+  } catch(e) {
+    startCanvasScanning(video);
+  }
+}
+
+function startCanvasScanning(video) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.DATA_MATRIX,
+    ZXing.BarcodeFormat.QR_CODE,
+    ZXing.BarcodeFormat.EAN_13,
+    ZXing.BarcodeFormat.EAN_8,
+    ZXing.BarcodeFormat.CODE_128,
+  ]);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  const reader = new ZXing.BrowserMultiFormatReader(hints);
+
+  async function tick() {
+    if (!scannerActive) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      try {
+        const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+        const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+        const result = reader.decode(bitmap);
+        if (result && scannerActive) {
+          const raw = result.getText();
+          const parsed = parseDataMatrix(raw);
+          scannerActive = false;
+          if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+          closeScanner();
+          lookupMedicine(parsed.cn || raw, parsed);
+          return;
+        }
+      } catch(e) {}
+    }
+    window._scanFrameId = requestAnimationFrame(tick);
+  }
+  window._scanFrameId = requestAnimationFrame(tick);
+}
+
+function parseDataMatrix(raw) {
+  const result = { raw, cn: null, expiry: null, lot: null, serial: null };
+  try {
+    const clean = raw.replace(/[\x1d\x1e\x04]/g, '|').replace(/\)>06\|?/, '');
+    const parts = clean.split('|');
+    for (const part of parts) {
+      if (part.startsWith('01') && part.length >= 16) {
+        const gtin = part.substring(2, 16);
+        result.cn = gtin.replace(/^0+/, '');
+      } else if (part.startsWith('17') && part.length >= 8) {
+        const d = part.substring(2, 8);
+        result.expiry = '20' + d.substring(0,2) + '-' + d.substring(2,4);
+      } else if (part.startsWith('10')) {
+        result.lot = part.substring(2);
+      } else if (part.startsWith('21')) {
+        result.serial = part.substring(2);
+      }
+    }
+  } catch(e) {}
+  return result;
 }
 
 // ─── FLASH / TORXA ───
@@ -1300,133 +1352,6 @@ function resetFlash() {
   if (label) label.textContent = 'Flash';
 }
 
-function closeScanner() {
-  scannerActive = false;
-  if (window._scanFrameId) { cancelAnimationFrame(window._scanFrameId); window._scanFrameId = null; }
-  if (codeReader) {
-    try { codeReader.reset(); } catch(e) {}
-    codeReader = null;
-  }
-  const video = document.getElementById('scanner-video');
-  if (video.srcObject) {
-    // Apaguem el flash abans de tancar
-    const track = video.srcObject.getVideoTracks()[0];
-    if (track && flashOn) {
-      try { track.applyConstraints({ advanced: [{ torch: false }] }); } catch(e) {}
-    }
-    video.srcObject.getTracks().forEach(t => t.stop());
-    video.srcObject = null;
-  }
-  resetFlash();
-  document.getElementById('scanner-modal').classList.remove('active');
-}
-
-function startBarcodeScanning(video) {
-  try {
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.DATA_MATRIX,
-      ZXing.BarcodeFormat.QR_CODE,
-      ZXing.BarcodeFormat.EAN_13,
-      ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.CODE_128,
-      ZXing.BarcodeFormat.ITF,
-    ]);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-
-    codeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
-
-    // Usem decodeFromStream per no interferir amb el srcObject ja assignat
-    codeReader.decodeFromStream(video.srcObject, video, (result, err) => {
-      if (result && scannerActive) {
-        const raw = result.getText();
-        const parsed = parseDataMatrix(raw);
-        scannerActive = false;
-        if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
-        closeScanner();
-        lookupMedicine(parsed.cn || raw, parsed);
-      }
-    });
-  } catch(e) {
-    console.error('ZXing error:', e);
-    // Fallback: canvas loop manual
-    startCanvasScanning(video);
-  }
-}
-
-// Fallback: llegim frames manualment amb canvas i ZXing
-function startCanvasScanning(video) {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const hints = new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.DATA_MATRIX,
-    ZXing.BarcodeFormat.QR_CODE,
-    ZXing.BarcodeFormat.EAN_13,
-    ZXing.BarcodeFormat.EAN_8,
-    ZXing.BarcodeFormat.CODE_128,
-  ]);
-  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  const reader = new ZXing.BrowserMultiFormatReader(hints);
-
-  let frameId;
-  async function tick() {
-    if (!scannerActive) return;
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-      try {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-        const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-        const result = reader.decode(binaryBitmap);
-        if (result && scannerActive) {
-          const raw = result.getText();
-          const parsed = parseDataMatrix(raw);
-          scannerActive = false;
-          if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
-          closeScanner();
-          lookupMedicine(parsed.cn || raw, parsed);
-          return;
-        }
-      } catch(e) { /* no detectat, continuem */ }
-    }
-    frameId = requestAnimationFrame(tick);
-  }
-  frameId = requestAnimationFrame(tick);
-  // Guardem frameId per poder cancel·lar
-  window._scanFrameId = frameId;
-}
-
-// Parseja el DataMatrix farmacèutic (format GS1-128 / IDMP)
-// Estructura: )>0601{GTIN}17{YYYYMMDD}10{LOT}21{SERIAL}
-function parseDataMatrix(raw) {
-  const result = { raw, cn: null, expiry: null, lot: null, serial: null };
-  try {
-    // Neteja caràcters de control GS1
-    const clean = raw.replace(/[]/g, '|').replace(/\)>06\|?/,'');
-    const parts = clean.split('|');
-    for (const part of parts) {
-      if (part.startsWith('01') && part.length >= 16) {
-        // GTIN-14: 01 + 14 digits. CN espanyol és els últims 7 dígits
-        const gtin = part.substring(2, 16);
-        result.cn = gtin.replace(/^0+/, ''); // treu zeros inicials
-      } else if (part.startsWith('17') && part.length >= 8) {
-        // Data caducitat: YYMMDD
-        const d = part.substring(2, 8);
-        const year = '20' + d.substring(0,2);
-        const month = d.substring(2,4);
-        result.expiry = year + '-' + month;
-      } else if (part.startsWith('10')) {
-        result.lot = part.substring(2);
-      } else if (part.startsWith('21')) {
-        result.serial = part.substring(2);
-      }
-    }
-  } catch(e) {}
-  return result;
-}
 
 // ─── MEDICINE LOOKUP ───
 async function lookupMedicine(barcode, dmParsed = null) {
