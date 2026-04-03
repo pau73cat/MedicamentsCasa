@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0a1628">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>FarmaCasa 1.0 – La teva farmaciola</title>
+<title>FarmaCasa – La teva farmaciola</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
@@ -723,7 +723,7 @@
 
 <!-- HEADER -->
 <header>
-  <div class="logo">Farma<span>Casa</span>1.0</span></div>
+  <div class="logo">Farma<span>Casa</span></div>
   <div class="header-stats">
     <div class="stat-badge"><span class="num" id="total-count">0</span> medicaments</div>
   </div>
@@ -788,7 +788,26 @@
         <div class="scan-frame"></div>
       </div>
     </div>
-    <p class="scan-hint">Col·loca el codi <strong style="color:var(--accent);">DataMatrix</strong> (quadrat de punts) dins del requadre · Apropa el mòbil fins que es vegi net</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 4px;">
+      <p class="scan-hint" style="margin:0;flex:1;">Col·loca el codi <strong style="color:var(--accent);">DataMatrix</strong> dins del requadre</p>
+      <button id="flash-btn" onclick="toggleFlash()" style="
+        flex-shrink:0;
+        margin-left:12px;
+        background:var(--surface2);
+        border:1px solid var(--border);
+        border-radius:12px;
+        color:var(--text-muted);
+        font-size:0.8rem;
+        font-weight:600;
+        padding:8px 14px;
+        cursor:pointer;
+        display:flex;align-items:center;gap:6px;
+        transition:all 0.2s;
+      ">
+        <span id="flash-icon">🔦</span>
+        <span id="flash-label">Flash</span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -813,6 +832,42 @@
     <div class="form-group">
       <label class="form-label">Principi actiu</label>
       <input type="text" class="form-input" id="f-principle" placeholder="Ex: Ibuprofèn">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Laboratori / Fabricant</label>
+      <input type="text" class="form-input" id="f-manufacturer" placeholder="Ex: Bayer, Cinfa, Almirall...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contingut</label>
+      <input type="text" class="form-input" id="f-content" placeholder="Ex: 20 comprimits, 500 ml, 30 càpsules...">
+    </div>
+    <div class="form-group" id="stock-group" style="display:none;">
+      <label class="form-label" id="stock-label">Unitats restants</label>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <input type="range" id="f-stock-pct" min="0" max="100" value="100"
+          oninput="updateStockDisplay()"
+          style="flex:1;accent-color:var(--accent);height:6px;cursor:pointer;">
+        <div id="stock-display"
+          style="min-width:52px;text-align:center;font-family:Syne,sans-serif;font-weight:700;font-size:1rem;color:var(--accent);">
+          100%
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;">
+        <span style="font-size:0.7rem;color:var(--text-muted);">Buit</span>
+        <span id="stock-units-hint" style="font-size:0.7rem;color:var(--text-muted);"></span>
+        <span style="font-size:0.7rem;color:var(--text-muted);">Ple</span>
+      </div>
+      <input type="number" id="f-stock-units" min="0" placeholder="O introdueix les unitats exactes"
+        oninput="updateStockFromUnits()"
+        style="margin-top:10px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.9rem;padding:11px 14px;outline:none;">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Per a què serveix</label>
+      <textarea class="form-input" id="f-indications" placeholder="Ex: Tractament del dolor lleu o moderat..." rows="3" style="resize:none;line-height:1.5;"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Com utilitzar-lo</label>
+      <textarea class="form-input" id="f-usage" placeholder="Ex: Adults: 1 comprimit cada 8 hores..." rows="3" style="resize:none;line-height:1.5;"></textarea>
     </div>
     <div class="form-group">
       <label class="form-label">Codi de barres</label>
@@ -922,6 +977,85 @@ function getDaysLeft(expiryStr) {
   return diff;
 }
 
+// ─── STOCK HELPERS ───
+function stockColor(pct) {
+  if (pct <= 15) return '#ff6b6b';
+  if (pct <= 35) return '#ffd166';
+  return '#00d4aa';
+}
+
+function stockLabel(m) {
+  if (m.stockUnits) return m.stockUnits + ' u.';
+  const pct = m.stockPct ?? 100;
+  if (pct === 100) return 'Ple';
+  if (pct === 0) return 'Buit';
+  return pct + '%';
+}
+
+// Detecta si el contingut és en ml/l (líquid) o unitats (comprimits, càpsules...)
+function stockType(contentStr) {
+  if (!contentStr) return 'pct';
+  const lower = contentStr.toLowerCase();
+  if (/ml|l|litre|líquid|xarop|solució|suspensió|got|ampolla/.test(lower)) return 'ml';
+  const match = lower.match(/(\d+)\s*(comprimits?|càpsules?|capsules?|grageas?|pastilles?|sobres?|vials?|ampolles?|patches?|pegats?)/);
+  if (match) return 'units:' + match[1];
+  return 'pct';
+}
+
+function showStockField(contentStr) {
+  const group = document.getElementById('stock-group');
+  const label = document.getElementById('stock-label');
+  const hint = document.getElementById('stock-units-hint');
+  const unitsInput = document.getElementById('f-stock-units');
+  group.style.display = 'block';
+  const type = stockType(contentStr);
+  if (type.startsWith('units:')) {
+    const total = parseInt(type.split(':')[1]);
+    label.textContent = 'Unitats restants';
+    hint.textContent = 'de ' + total + ' unitats';
+    unitsInput.placeholder = 'Ex: ' + total + ' (total)';
+    unitsInput.max = total;
+    unitsInput.dataset.total = total;
+  } else if (type === 'ml') {
+    const match = contentStr.match(/(\d+)\s*ml/i);
+    const total = match ? match[1] : '';
+    label.textContent = 'Volum restant (%)';
+    hint.textContent = total ? 'de ' + total + ' ml' : '';
+    unitsInput.placeholder = total ? 'O introdueix els ml exactes (màx ' + total + ')' : 'ml exactes';
+    unitsInput.max = total || 9999;
+    unitsInput.dataset.total = total || 0;
+  } else {
+    label.textContent = 'Quantitat restant';
+    hint.textContent = '';
+    unitsInput.placeholder = 'Unitats exactes (opcional)';
+    unitsInput.dataset.total = 0;
+  }
+  updateStockDisplay();
+}
+
+function updateStockDisplay() {
+  const pct = parseInt(document.getElementById('f-stock-pct').value);
+  const display = document.getElementById('stock-display');
+  const total = parseInt(document.getElementById('f-stock-units').dataset?.total || 0);
+  if (total > 0) {
+    const units = Math.round(total * pct / 100);
+    display.textContent = units + ' u.';
+  } else {
+    display.textContent = pct + '%';
+  }
+  display.style.color = stockColor(pct);
+}
+
+function updateStockFromUnits() {
+  const val = parseInt(document.getElementById('f-stock-units').value);
+  const total = parseInt(document.getElementById('f-stock-units').dataset?.total || 0);
+  if (!isNaN(val) && total > 0) {
+    const pct = Math.min(100, Math.round(val * 100 / total));
+    document.getElementById('f-stock-pct').value = pct;
+    updateStockDisplay();
+  }
+}
+
 // ─── RENDER LIST ───
 function renderList() {
   const search = document.getElementById('search-input').value.toLowerCase();
@@ -979,6 +1113,9 @@ function renderList() {
         <div class="card-content">
           <div class="card-name">${m.name}</div>
           ${m.principle ? `<div class="card-principle">${m.principle}</div>` : ''}
+          ${m.manufacturer ? `<div class="card-principle" style="color:var(--text-muted);">🏭 ${m.manufacturer}</div>` : ''}
+          ${m.content ? `<div class="card-principle" style="color:var(--accent);font-style:normal;font-size:0.72rem;">📦 ${m.content}${m.stockPct !== undefined && m.stockPct < 100 ? ' · <span style="color:' + stockColor(m.stockPct) + ';">' + stockLabel(m) + '</span>' : ''}</div>` : ''}
+          ${m.content === undefined && m.stockPct !== undefined && m.stockPct < 100 ? `<div class="card-principle" style="color:${stockColor(m.stockPct)};font-style:normal;font-size:0.72rem;">${stockLabel(m)}</div>` : ''}
           ${m.barcode ? `<div class="card-barcode">▌▌▌ ${m.barcode}</div>` : ''}
           <div class="card-expiry ${expiryClass}">${expiryIcon} ${expiryText}</div>
         </div>
@@ -997,12 +1134,16 @@ function renderAlerts() {
   const expired = medicines.filter(m => getExpiryStatus(m.expiry) === 'expired');
   const expiring = medicines.filter(m => getExpiryStatus(m.expiry) === 'expiring');
 
-  if (expired.length === 0 && expiring.length === 0) {
+  const lowStock = medicines.filter(m => (m.stockPct ?? 100) <= 15 && (m.stockPct ?? 100) > 0);
+  if (expired.length === 0 && expiring.length === 0 && lowStock.length === 0) {
     section.style.display = 'none';
     return;
   }
   section.style.display = 'block';
   let html = '';
+  if (lowStock.length > 0) {
+    html += `<div class="alert-card warning"><div class="alert-dot" style="background:#ff6b6b;animation:pulse 1.5s ease-in-out infinite;"></div><div class="alert-text"><strong>${lowStock.length} medicament${lowStock.length > 1 ? 's' : ''} amb poc stock</strong> — ${lowStock.map(m => m.name).join(', ')}.</div></div>`;
+  }
   if (expired.length > 0) {
     html += `<div class="alert-card"><div class="alert-dot"></div><div class="alert-text"><strong>${expired.length} medicament${expired.length > 1 ? 's' : ''} caducat${expired.length > 1 ? 's' : ''}</strong> — Cal revisar-los i llençar-los.</div></div>`;
   }
@@ -1104,6 +1245,61 @@ async function openScanner() {
   }
 }
 
+// ─── FLASH / TORXA ───
+let flashOn = false;
+
+async function toggleFlash() {
+  const video = document.getElementById('scanner-video');
+  if (!video.srcObject) return;
+
+  const track = video.srcObject.getVideoTracks()[0];
+  if (!track) return;
+
+  const capabilities = track.getCapabilities?.() || {};
+  if (!capabilities.torch) {
+    showToast('Aquest dispositiu no suporta el flash', 'warning');
+    return;
+  }
+
+  flashOn = !flashOn;
+  try {
+    await track.applyConstraints({ advanced: [{ torch: flashOn }] });
+    const btn = document.getElementById('flash-btn');
+    const icon = document.getElementById('flash-icon');
+    const label = document.getElementById('flash-label');
+    if (flashOn) {
+      btn.style.background = 'rgba(255,209,102,0.15)';
+      btn.style.borderColor = 'rgba(255,209,102,0.5)';
+      btn.style.color = '#ffd166';
+      icon.textContent = '💡';
+      label.textContent = 'Apagar';
+    } else {
+      btn.style.background = 'var(--surface2)';
+      btn.style.borderColor = 'var(--border)';
+      btn.style.color = 'var(--text-muted)';
+      icon.textContent = '🔦';
+      label.textContent = 'Flash';
+    }
+  } catch(e) {
+    showToast('No s'ha pogut activar el flash', 'error');
+    flashOn = !flashOn;
+  }
+}
+
+function resetFlash() {
+  flashOn = false;
+  const btn = document.getElementById('flash-btn');
+  const icon = document.getElementById('flash-icon');
+  const label = document.getElementById('flash-label');
+  if (btn) {
+    btn.style.background = 'var(--surface2)';
+    btn.style.borderColor = 'var(--border)';
+    btn.style.color = 'var(--text-muted)';
+  }
+  if (icon) icon.textContent = '🔦';
+  if (label) label.textContent = 'Flash';
+}
+
 function closeScanner() {
   scannerActive = false;
   if (window._scanFrameId) { cancelAnimationFrame(window._scanFrameId); window._scanFrameId = null; }
@@ -1113,9 +1309,15 @@ function closeScanner() {
   }
   const video = document.getElementById('scanner-video');
   if (video.srcObject) {
+    // Apaguem el flash abans de tancar
+    const track = video.srcObject.getVideoTracks()[0];
+    if (track && flashOn) {
+      try { track.applyConstraints({ advanced: [{ torch: false }] }); } catch(e) {}
+    }
     video.srcObject.getTracks().forEach(t => t.stop());
     video.srcObject = null;
   }
+  resetFlash();
   document.getElementById('scanner-modal').classList.remove('active');
 }
 
@@ -1271,7 +1473,10 @@ async function lookupMedicine(barcode, dmParsed = null) {
     if (aiResult) {
       if (!found.name && aiResult.name) found.name = aiResult.name;
       if (!found.principle && aiResult.principle) found.principle = aiResult.principle;
-      // Si Claude ens dona una URL de foto directa, l'usem
+      if (!found.manufacturer && aiResult.manufacturer) found.manufacturer = aiResult.manufacturer;
+      if (!found.content && aiResult.content) found.content = aiResult.content;
+      if (!found.indications && aiResult.indications) found.indications = aiResult.indications;
+      if (!found.usage && aiResult.usage) found.usage = aiResult.usage;
       if (!found.image && aiResult.imageUrl) found.image = aiResult.imageUrl;
       // Si tenim nom però no foto, busquem foto per nom
       if (!found.image && found.name) {
@@ -1289,6 +1494,11 @@ async function lookupMedicine(barcode, dmParsed = null) {
     openManualForm(null);
     document.getElementById('f-name').value = found.name || '';
     document.getElementById('f-principle').value = found.principle || '';
+    document.getElementById('f-manufacturer').value = found.manufacturer || '';
+    document.getElementById('f-content').value = found.content || '';
+    document.getElementById('f-indications').value = found.indications || '';
+    document.getElementById('f-usage').value = found.usage || '';
+    if (found.content) { showStockField(found.content); }
     document.getElementById('f-barcode').value = barcode;
     // Si ve d'un DataMatrix farmacèutic, pre-omplem data caducitat i lot
     if (dmParsed?.expiry) document.getElementById('f-expiry').value = dmParsed.expiry;
@@ -1384,28 +1594,32 @@ async function askClaudeAboutBarcode(barcode, knownName = '') {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 600,
+        max_tokens: 800,
         tools: [{ type: "web_search_20250305", name: "web_search" }],
         messages: [{
           role: "user",
-          content: `The barcode "${barcode}" belongs to a Spanish/Catalan medicine (National Code CN format). ${knownName ? `Possible name: "${knownName}".` : ''}
-Search for this medicine to find:
-1. Its official name
+          content: `The code "${barcode}" belongs to a Spanish medicine. ${knownName ? `Possible name: "${knownName}".` : ''}
+Search the CIMA database (cima.aemps.es) or Spanish pharmacy sites to find ALL of this:
+1. Official medicine name
 2. Active ingredient (principio activo)
-3. A direct URL to a photo of the medicine box (from cima.aemps.es, farmacias.com, or similar official Spanish pharmacy sources)
+3. Manufacturer / laboratory name (laboratorio titular)
+4. Content quantity (e.g. "20 comprimidos", "500 ml", "30 capsulas", "1 vial 5ml")
+5. Indications: what the medicine is used for (in Catalan, 2-3 sentences max)
+6. How to use it: dosage and administration instructions (in Catalan, 2-3 sentences max)
+7. A direct image URL of the medicine box
 
-Respond ONLY with JSON: {"name": "...", "principle": "...", "imageUrl": "https://..." or null}`
+Respond ONLY with this exact JSON (no extra text):
+{"name":"...","principle":"...","manufacturer":"...","content":"...","indications":"...","usage":"...","imageUrl":"..." or null}`
         }]
       })
     });
     if (!response.ok) return null;
     const data = await response.json();
     const text = data.content?.filter(c => c.type === 'text').map(c => c.text).join('') || '';
-    const clean = text.replace(/```json|```/g, '').trim();
-    const match = clean.match(/\{[\s\S]*?\}/);
+    const clean = text.replace(/```json[\s\S]*?```|```/g, '').trim();
+    const match = clean.match(/\{[\s\S]*\}/);
     if (!match) return null;
-    const parsed = JSON.parse(match[0]);
-    return parsed;
+    return JSON.parse(match[0]);
   } catch(e) {
     return null;
   }
@@ -1424,7 +1638,15 @@ function openManualForm(id) {
     document.getElementById('save-btn-text').textContent = 'Guardar canvis';
     document.getElementById('f-name').value = m.name || '';
     document.getElementById('f-principle').value = m.principle || '';
+    document.getElementById('f-manufacturer').value = m.manufacturer || '';
+    document.getElementById('f-content').value = m.content || '';
+    document.getElementById('f-indications').value = m.indications || '';
+    document.getElementById('f-usage').value = m.usage || '';
+    document.getElementById('f-stock-pct').value = m.stockPct ?? 100;
+    document.getElementById('f-stock-units').value = m.stockUnits || '';
     document.getElementById('f-barcode').value = m.barcode || '';
+    showStockField(m.content || '');
+    updateStockDisplay();
     document.getElementById('f-expiry').value = m.expiry || '';
     document.getElementById('f-quantity').value = m.quantity || '';
     document.getElementById('f-notes').value = m.notes || '';
@@ -1441,7 +1663,14 @@ function openManualForm(id) {
     document.getElementById('save-btn-text').textContent = 'Guardar medicament';
     document.getElementById('f-name').value = '';
     document.getElementById('f-principle').value = '';
+    document.getElementById('f-manufacturer').value = '';
+    document.getElementById('f-content').value = '';
+    document.getElementById('f-indications').value = '';
+    document.getElementById('f-usage').value = '';
+    document.getElementById('f-stock-pct').value = 100;
+    document.getElementById('f-stock-units').value = '';
     document.getElementById('f-barcode').value = '';
+    document.getElementById('stock-group').style.display = 'none';
     document.getElementById('f-expiry').value = '';
     document.getElementById('f-quantity').value = '';
     document.getElementById('f-notes').value = '';
@@ -1490,6 +1719,12 @@ function saveMedicine() {
     id,
     name,
     principle: document.getElementById('f-principle').value.trim(),
+    manufacturer: document.getElementById('f-manufacturer').value.trim(),
+    content: document.getElementById('f-content').value.trim(),
+    indications: document.getElementById('f-indications').value.trim(),
+    usage: document.getElementById('f-usage').value.trim(),
+    stockPct: parseInt(document.getElementById('f-stock-pct').value) || 100,
+    stockUnits: document.getElementById('f-stock-units').value.trim(),
     barcode: document.getElementById('f-barcode').value.trim(),
     expiry: document.getElementById('f-expiry').value,
     quantity: document.getElementById('f-quantity').value.trim(),
@@ -1552,6 +1787,14 @@ function showDetail(id) {
       </div>
 
       <div class="detail-grid">
+        ${m.manufacturer ? `<div class="detail-item" style="grid-column:1/-1">
+          <div class="detail-item-label">Laboratori</div>
+          <div class="detail-item-value">${m.manufacturer}</div>
+        </div>` : ''}
+        ${m.content ? `<div class="detail-item">
+          <div class="detail-item-label">Contingut</div>
+          <div class="detail-item-value">${m.content}</div>
+        </div>` : ''}
         ${m.barcode ? `<div class="detail-item">
           <div class="detail-item-label">Codi de barres</div>
           <div class="detail-item-value" style="font-family:monospace;font-size:0.8rem;">${m.barcode}</div>
@@ -1566,6 +1809,23 @@ function showDetail(id) {
         </div>
       </div>
 
+      ${(m.stockPct !== undefined || m.stockUnits) ? `<div class="detail-notes" style="margin-bottom:12px;">
+        <div class="detail-notes-label" style="margin-bottom:8px;">📊 Stock disponible</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;height:10px;background:var(--surface2);border-radius:10px;overflow:hidden;">
+            <div style="height:100%;width:${m.stockPct ?? 100}%;background:${stockColor(m.stockPct ?? 100)};border-radius:10px;transition:width 0.4s;"></div>
+          </div>
+          <span style="font-family:Syne,sans-serif;font-weight:700;font-size:0.95rem;color:${stockColor(m.stockPct ?? 100)};min-width:40px;text-align:right;">${stockLabel(m)}</span>
+        </div>
+      </div>` : ''}
+      ${m.indications ? `<div class="detail-notes" style="border-left:3px solid var(--accent);padding-left:14px;">
+        <div class="detail-notes-label">💊 Per a què serveix</div>
+        <div class="detail-notes-text">${m.indications}</div>
+      </div>` : ''}
+      ${m.usage ? `<div class="detail-notes" style="border-left:3px solid var(--accent3);padding-left:14px;">
+        <div class="detail-notes-label">📋 Com utilitzar-lo</div>
+        <div class="detail-notes-text">${m.usage}</div>
+      </div>` : ''}
       ${m.notes ? `<div class="detail-notes">
         <div class="detail-notes-label">Notes</div>
         <div class="detail-notes-text">${m.notes}</div>
