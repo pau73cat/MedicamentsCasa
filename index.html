@@ -3,738 +3,153 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#0a1628">
+<meta name="theme-color" content="#07111f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>FarmaCasa – La teva farmaciola</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<title>FarmaCasa</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
-
 <style>
-  :root {
-    --bg: #07111f;
-    --surface: #0d1e33;
-    --surface2: #132843;
-    --accent: #00d4aa;
-    --accent2: #ff6b6b;
-    --accent3: #ffd166;
-    --text: #e8f4f8;
-    --text-muted: #7a9ab5;
-    --border: rgba(0,212,170,0.15);
-    --glow: 0 0 20px rgba(0,212,170,0.2);
-    --radius: 16px;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* ─── BACKGROUND ─── */
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background:
-      radial-gradient(ellipse 60% 40% at 80% 10%, rgba(0,212,170,0.08) 0%, transparent 60%),
-      radial-gradient(ellipse 40% 60% at 20% 80%, rgba(0,100,200,0.07) 0%, transparent 60%);
-    pointer-events: none; z-index: 0;
-  }
-
-  /* ─── HEADER ─── */
-  header {
-    position: sticky; top: 0; z-index: 100;
-    background: rgba(7,17,31,0.92);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border);
-    padding: 16px 20px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-
-  .logo {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800; font-size: 1.3rem;
-    background: linear-gradient(135deg, var(--accent), #00a8ff);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    letter-spacing: -0.5px;
-  }
-  .logo span { color: var(--accent2); -webkit-text-fill-color: var(--accent2); }
-
-  .header-stats {
-    display: flex; gap: 12px; align-items: center;
-  }
-  .stat-badge {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 4px 12px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-muted);
-  }
-  .stat-badge .num {
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    color: var(--accent);
-    margin-right: 3px;
-  }
-
-  /* ─── MAIN CONTENT ─── */
-  main {
-    position: relative; z-index: 1;
-    max-width: 480px; margin: 0 auto;
-    padding: 0 16px 100px;
-  }
-
-  /* ─── SCAN BUTTON ─── */
-  .scan-hero {
-    margin: 24px 0 20px;
-    display: flex; flex-direction: column; align-items: center; gap: 12px;
-  }
-
-  .scan-btn {
-    width: 100%;
-    background: linear-gradient(135deg, var(--accent) 0%, #00a8ff 100%);
-    border: none; border-radius: var(--radius);
-    color: var(--bg);
-    font-family: 'Syne', sans-serif;
-    font-weight: 700; font-size: 1rem;
-    padding: 18px 24px;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    box-shadow: 0 8px 30px rgba(0,212,170,0.3);
-    transition: transform 0.15s, box-shadow 0.15s;
-    letter-spacing: 0.3px;
-  }
-  .scan-btn:active { transform: scale(0.97); box-shadow: 0 4px 15px rgba(0,212,170,0.2); }
-  .scan-btn svg { width: 22px; height: 22px; }
-
-  .manual-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    padding: 8px 16px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .manual-btn:active { background: var(--surface2); color: var(--text); }
-
-  /* ─── SCANNER MODAL ─── */
-  .modal-overlay {
-    position: fixed; inset: 0; z-index: 200;
-    background: rgba(0,0,0,0.9);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.3s;
-  }
-  .modal-overlay.active { opacity: 1; pointer-events: all; }
-
-  .scanner-container {
-    width: 100%; max-width: 400px;
-    position: relative;
-  }
-
-  .scanner-header {
-    padding: 16px 20px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .scanner-title {
-    font-family: 'Syne', sans-serif;
-    font-weight: 700; font-size: 1rem;
-    color: var(--text);
-  }
-  .close-btn {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 50%;
-    width: 36px; height: 36px;
-    color: var(--text);
-    font-size: 1.1rem;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-  }
-
-  #video-container {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1;
-    border-radius: var(--radius);
-    overflow: hidden;
-    background: #000;
-  }
-
-  #scanner-video {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-    background: #000;
-    transform: translateZ(0); /* força GPU rendering, evita pantalla negra */
-  }
-
-  .scan-overlay {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .scan-frame {
-    width: 65%; aspect-ratio: 2/1;
-    border: 2px solid var(--accent);
-    border-radius: 8px;
-    box-shadow: 0 0 0 2000px rgba(0,0,0,0.45);
-    position: relative;
-  }
-  .scan-frame::before {
-    content: '';
-    position: absolute;
-    top: -1px; left: 10%;
-    width: 80%; height: 2px;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent);
-    animation: scanLine 2s ease-in-out infinite;
-  }
-  @keyframes scanLine {
-    0% { top: 0; opacity: 1; }
-    50% { top: calc(100% - 2px); opacity: 1; }
-    100% { top: 0; opacity: 1; }
-  }
-
-  .scan-hint {
-    margin-top: 16px;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    padding: 0 20px;
-  }
-
-  /* ─── MANUAL MODAL ─── */
-  .form-modal {
-    position: fixed; inset: 0; z-index: 300;
-    background: rgba(0,0,0,0.85);
-    display: flex; align-items: flex-end;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.3s;
-  }
-  .form-modal.active { opacity: 1; pointer-events: all; }
-
-  .form-sheet {
-    width: 100%;
-    background: var(--surface);
-    border-radius: 20px 20px 0 0;
-    border-top: 1px solid var(--border);
-    padding: 20px;
-    max-height: 90vh;
-    overflow-y: auto;
-    transform: translateY(100%);
-    transition: transform 0.35s cubic-bezier(0.32,0.72,0,1);
-  }
-  .form-modal.active .form-sheet { transform: translateY(0); }
-
-  .sheet-handle {
-    width: 40px; height: 4px;
-    background: var(--surface2);
-    border-radius: 2px;
-    margin: 0 auto 20px;
-  }
-
-  .sheet-title {
-    font-family: 'Syne', sans-serif;
-    font-weight: 700; font-size: 1.1rem;
-    margin-bottom: 20px;
-    color: var(--text);
-  }
-
-  .form-group {
-    margin-bottom: 16px;
-  }
-  .form-label {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 6px;
-  }
-  .form-input {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.95rem;
-    padding: 12px 14px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .form-input:focus { border-color: var(--accent); }
-  .form-input::placeholder { color: var(--text-muted); }
-
-  .photo-upload-area {
-    width: 100%;
-    border: 2px dashed var(--border);
-    border-radius: 10px;
-    padding: 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s;
-    position: relative;
-    overflow: hidden;
-  }
-  .photo-upload-area:active { border-color: var(--accent); }
-  .photo-upload-area input {
-    position: absolute; inset: 0;
-    opacity: 0; cursor: pointer;
-  }
-  .photo-preview {
-    width: 100%; max-height: 150px;
-    object-fit: contain;
-    border-radius: 8px;
-    display: none;
-  }
-  .photo-placeholder {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-  }
-  .photo-placeholder .icon { font-size: 2rem; margin-bottom: 6px; }
-
-  .save-btn {
-    width: 100%;
-    background: linear-gradient(135deg, var(--accent), #00a8ff);
-    border: none; border-radius: 12px;
-    color: var(--bg);
-    font-family: 'Syne', sans-serif;
-    font-weight: 700; font-size: 0.95rem;
-    padding: 15px;
-    cursor: pointer;
-    margin-top: 8px;
-    box-shadow: 0 4px 20px rgba(0,212,170,0.25);
-  }
-
-  /* ─── FILTERS ─── */
-  .filter-row {
-    display: flex; gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
-    margin-bottom: 16px;
-  }
-  .filter-row::-webkit-scrollbar { display: none; }
-
-  .filter-chip {
-    flex-shrink: 0;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-  .filter-chip.active {
-    background: rgba(0,212,170,0.12);
-    border-color: var(--accent);
-    color: var(--accent);
-    font-weight: 500;
-  }
-
-  /* ─── MEDICINE CARDS ─── */
-  .section-title {
-    font-family: 'Syne', sans-serif;
-    font-weight: 700; font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--text-muted);
-    margin-bottom: 10px;
-  }
-
-  .medicines-list {
-    display: flex; flex-direction: column; gap: 10px;
-  }
-
-  .medicine-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    display: flex;
-    transition: transform 0.15s;
-    position: relative;
-  }
-  .medicine-card:active { transform: scale(0.99); }
-
-  .medicine-card.expired { border-color: rgba(255,107,107,0.4); }
-  .medicine-card.expiring-soon { border-color: rgba(255,209,102,0.4); }
-
-  .card-image {
-    width: 80px; min-height: 90px;
-    flex-shrink: 0;
-    background: var(--surface2);
-    display: flex; align-items: center; justify-content: center;
-    overflow: hidden;
-  }
-  .card-image img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-  }
-  .card-image-placeholder {
-    font-size: 2rem;
-    opacity: 0.3;
-  }
-
-  .card-content {
-    flex: 1;
-    padding: 12px 14px;
-    display: flex; flex-direction: column; gap: 4px;
-  }
-
-  .card-name {
-    font-family: 'Syne', sans-serif;
-    font-weight: 700; font-size: 0.95rem;
-    color: var(--text);
-    line-height: 1.2;
-  }
-  .card-principle {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    font-style: italic;
-  }
-  .card-barcode {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    font-family: monospace;
-    margin-top: 2px;
-  }
-
-  .card-expiry {
-    display: inline-flex;
-    align-items: center; gap: 4px;
-    margin-top: 4px;
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    width: fit-content;
-  }
-  .expiry-ok { background: rgba(0,212,170,0.12); color: var(--accent); }
-  .expiry-soon { background: rgba(255,209,102,0.15); color: var(--accent3); }
-  .expiry-expired { background: rgba(255,107,107,0.15); color: var(--accent2); }
-  .expiry-unknown { background: rgba(122,154,181,0.15); color: var(--text-muted); }
-
-  .card-actions {
-    display: flex; flex-direction: column; gap: 4px;
-    padding: 8px 8px 8px 0;
-    justify-content: center;
-  }
-  .icon-btn {
-    width: 32px; height: 32px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--surface2);
-    color: var(--text-muted);
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.85rem;
-    transition: all 0.15s;
-  }
-  .icon-btn:active { transform: scale(0.9); }
-  .icon-btn.delete:active { background: rgba(255,107,107,0.15); color: var(--accent2); }
-
-  .expired-badge {
-    position: absolute; top: 8px; right: 8px;
-    background: var(--accent2);
-    color: white;
-    font-size: 0.6rem;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  /* ─── EMPTY STATE ─── */
-  .empty-state {
-    text-align: center;
-    padding: 50px 20px;
-  }
-  .empty-icon { font-size: 4rem; margin-bottom: 16px; opacity: 0.5; }
-  .empty-title {
-    font-family: 'Syne', sans-serif;
-    font-weight: 700; font-size: 1.1rem;
-    margin-bottom: 8px;
-  }
-  .empty-text { color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; }
-
-  /* ─── DETAIL MODAL ─── */
-  .detail-modal {
-    position: fixed; inset: 0; z-index: 400;
-    background: rgba(0,0,0,0.9);
-    display: flex; align-items: flex-end;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.3s;
-  }
-  .detail-modal.active { opacity: 1; pointer-events: all; }
-
-  .detail-sheet {
-    width: 100%;
-    background: var(--surface);
-    border-radius: 20px 20px 0 0;
-    border-top: 1px solid var(--border);
-    max-height: 85vh;
-    overflow-y: auto;
-    transform: translateY(100%);
-    transition: transform 0.35s cubic-bezier(0.32,0.72,0,1);
-  }
-  .detail-modal.active .detail-sheet { transform: translateY(0); }
-
-  .detail-image {
-    width: 100%; height: 200px;
-    object-fit: contain;
-    background: var(--surface2);
-    border-radius: 12px 12px 0 0;
-  }
-  .detail-image-placeholder {
-    width: 100%; height: 200px;
-    background: var(--surface2);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 5rem; opacity: 0.3;
-    border-radius: 12px 12px 0 0;
-  }
-  .detail-body { padding: 20px; }
-
-  .detail-name {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800; font-size: 1.3rem;
-    margin-bottom: 4px;
-  }
-  .detail-principle {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    font-style: italic;
-    margin-bottom: 16px;
-  }
-
-  .detail-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 10px; margin-bottom: 20px;
-  }
-  .detail-item {
-    background: var(--surface2);
-    border-radius: 10px;
-    padding: 12px;
-  }
-  .detail-item-label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 4px;
-  }
-  .detail-item-value {
-    font-family: 'Syne', sans-serif;
-    font-weight: 600; font-size: 0.9rem;
-  }
-
-  .detail-notes {
-    background: var(--surface2);
-    border-radius: 10px;
-    padding: 12px;
-    margin-bottom: 20px;
-  }
-  .detail-notes-label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 6px;
-  }
-  .detail-notes-text {
-    font-size: 0.85rem;
-    line-height: 1.5;
-    color: var(--text-muted);
-  }
-
-  /* ─── TOAST ─── */
-  .toast {
-    position: fixed; bottom: 90px; left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px 20px;
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text);
-    z-index: 500;
-    opacity: 0;
-    transition: all 0.3s;
-    white-space: nowrap;
-    pointer-events: none;
-  }
-  .toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-  .toast.success { border-color: rgba(0,212,170,0.4); }
-  .toast.error { border-color: rgba(255,107,107,0.4); }
-  .toast.warning { border-color: rgba(255,209,102,0.4); }
-
-  /* ─── LOADING SPINNER ─── */
-  .spinner {
-    display: none;
-    width: 20px; height: 20px;
-    border: 2px solid rgba(0,0,0,0.3);
-    border-top-color: var(--bg);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ─── LOOKING UP STATE ─── */
-  .lookup-modal {
-    position: fixed; inset: 0; z-index: 350;
-    background: rgba(0,0,0,0.85);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.3s;
-    gap: 16px;
-  }
-  .lookup-modal.active { opacity: 1; pointer-events: all; }
-  .lookup-icon {
-    width: 60px; height: 60px;
-    background: rgba(0,212,170,0.1);
-    border: 1px solid var(--accent);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.5rem;
-  }
-  .lookup-spinner {
-    width: 40px; height: 40px;
-    border: 3px solid rgba(0,212,170,0.2);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  .lookup-text {
-    font-family: 'Syne', sans-serif;
-    font-weight: 600; font-size: 0.95rem;
-    color: var(--text);
-  }
-  .lookup-barcode {
-    font-family: monospace;
-    font-size: 0.85rem;
-    color: var(--accent);
-  }
-
-  /* ─── NAV ─── */
-  .bottom-nav {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: rgba(7,17,31,0.95);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
-    display: flex;
-    z-index: 50;
-    max-width: 480px; margin: 0 auto;
-  }
-  .nav-item {
-    flex: 1;
-    display: flex; flex-direction: column; align-items: center;
-    gap: 3px;
-    padding: 10px 8px 14px;
-    cursor: pointer;
-    color: var(--text-muted);
-    font-size: 0.65rem;
-    font-weight: 500;
-    transition: color 0.2s;
-  }
-  .nav-item.active { color: var(--accent); }
-  .nav-icon { font-size: 1.3rem; }
-
-  /* ─── SEARCH BAR ─── */
-  .search-wrap {
-    position: relative;
-    margin-bottom: 16px;
-  }
-  .search-input {
-    width: 100%;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 11px 14px 11px 40px;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.9rem;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .search-input:focus { border-color: var(--accent); }
-  .search-input::placeholder { color: var(--text-muted); }
-  .search-icon {
-    position: absolute; left: 12px; top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    font-size: 1rem;
-    pointer-events: none;
-  }
-
-  /* ─── ALERTS SECTION ─── */
-  .alerts-section {
-    margin-bottom: 20px;
-    display: none;
-  }
-  .alert-card {
-    background: rgba(255,107,107,0.08);
-    border: 1px solid rgba(255,107,107,0.25);
-    border-radius: 12px;
-    padding: 12px 14px;
-    margin-bottom: 8px;
-    display: flex; align-items: center; gap: 10px;
-  }
-  .alert-card.warning {
-    background: rgba(255,209,102,0.08);
-    border-color: rgba(255,209,102,0.25);
-  }
-  .alert-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--accent2);
-    flex-shrink: 0;
-    animation: pulse 1.5s ease-in-out infinite;
-  }
-  .alert-card.warning .alert-dot { background: var(--accent3); animation: none; }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-  .alert-text { font-size: 0.8rem; line-height: 1.4; }
-  .alert-text strong { color: var(--text); font-weight: 600; }
+:root{--bg:#07111f;--s1:#0d1e33;--s2:#132843;--a:#00d4aa;--a2:#ff6b6b;--a3:#ffd166;--t:#e8f4f8;--tm:#7a9ab5;--br:rgba(0,212,170,0.15);--r:16px}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 40% at 80% 10%,rgba(0,212,170,.08),transparent 60%),radial-gradient(ellipse 40% 60% at 20% 80%,rgba(0,100,200,.07),transparent 60%);pointer-events:none;z-index:0}
+header{position:sticky;top:0;z-index:100;background:rgba(7,17,31,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--br);padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;background:linear-gradient(135deg,var(--a),#00a8ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo span{-webkit-text-fill-color:var(--a2)}
+.stat-badge{background:var(--s2);border:1px solid var(--br);border-radius:20px;padding:4px 12px;font-size:.75rem;color:var(--tm)}
+.stat-badge b{font-family:'Syne',sans-serif;font-weight:700;color:var(--a);margin-right:3px}
+main{position:relative;z-index:1;max-width:480px;margin:0 auto;padding:0 16px 100px}
+.scan-hero{margin:24px 0 20px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.scan-btn{width:100%;background:linear-gradient(135deg,var(--a),#00a8ff);border:none;border-radius:var(--r);color:var(--bg);font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;padding:18px 24px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 30px rgba(0,212,170,.3);transition:transform .15s}
+.scan-btn:active{transform:scale(.97)}
+.scan-btn svg{width:22px;height:22px;flex-shrink:0}
+.manual-btn{background:transparent;border:1px solid var(--br);border-radius:10px;color:var(--tm);font-size:.8rem;padding:8px 16px;cursor:pointer}
+.modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
+.modal-overlay.active{opacity:1;pointer-events:all}
+.scanner-container{width:100%;max-width:400px}
+.scanner-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
+.scanner-title{font-family:'Syne',sans-serif;font-weight:700;font-size:1rem}
+.close-btn{background:var(--s2);border:1px solid var(--br);border-radius:50%;width:36px;height:36px;color:var(--t);font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#video-container{position:relative;width:100%;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:#000}
+#scanner-video{width:100%;height:100%;object-fit:cover;display:block;background:#000;transform:translateZ(0)}
+.scan-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.scan-frame{width:60%;aspect-ratio:1;border:2px solid var(--a);border-radius:8px;box-shadow:0 0 0 2000px rgba(0,0,0,.45);position:relative}
+.scan-frame::before{content:'';position:absolute;top:0;left:10%;width:80%;height:2px;background:var(--a);box-shadow:0 0 8px var(--a);animation:scanLine 2s ease-in-out infinite}
+@keyframes scanLine{0%,100%{top:0}50%{top:calc(100% - 2px)}}
+.scanner-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 4px 4px}
+.scan-hint{font-size:.8rem;color:var(--tm);flex:1}
+.flash-btn{flex-shrink:0;margin-left:12px;background:var(--s2);border:1px solid var(--br);border-radius:12px;color:var(--tm);font-size:.8rem;font-weight:600;padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.lookup-modal{position:fixed;inset:0;z-index:350;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;opacity:0;pointer-events:none;transition:opacity .3s}
+.lookup-modal.active{opacity:1;pointer-events:all}
+.lookup-spinner{width:40px;height:40px;border:3px solid rgba(0,212,170,.2);border-top-color:var(--a);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lookup-text{font-family:'Syne',sans-serif;font-weight:600;font-size:.95rem}
+.lookup-sub{font-size:.75rem;color:var(--tm)}
+.sheet-modal{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.85);display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .3s}
+.sheet-modal.active{opacity:1;pointer-events:all}
+.sheet{width:100%;background:var(--s1);border-radius:20px 20px 0 0;border-top:1px solid var(--br);padding:20px;max-height:92vh;overflow-y:auto;transform:translateY(100%);transition:transform .35s cubic-bezier(.32,.72,0,1)}
+.sheet-modal.active .sheet{transform:translateY(0)}
+.sheet-handle{width:40px;height:4px;background:var(--s2);border-radius:2px;margin:0 auto 20px}
+.sheet-title{font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;margin-bottom:20px}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:.72rem;font-weight:500;color:var(--tm);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px}
+.form-input{width:100%;background:var(--s2);border:1px solid var(--br);border-radius:10px;color:var(--t);font-family:'DM Sans',sans-serif;font-size:.92rem;padding:11px 13px;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:var(--a)}
+.form-input::placeholder{color:var(--tm)}
+textarea.form-input{resize:none;line-height:1.5}
+.photo-area{width:100%;border:2px dashed var(--br);border-radius:10px;padding:18px;text-align:center;cursor:pointer;position:relative;overflow:hidden}
+.photo-area input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.photo-preview{width:100%;max-height:140px;object-fit:contain;border-radius:8px;display:none}
+.photo-placeholder{color:var(--tm);font-size:.82rem}
+.photo-placeholder .icon{font-size:2rem;margin-bottom:6px}
+.stock-group{display:none}
+.stock-row{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+input[type=range]{flex:1;accent-color:var(--a);height:6px;cursor:pointer}
+.stock-display{min-width:52px;text-align:center;font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;color:var(--a)}
+.save-btn{width:100%;background:linear-gradient(135deg,var(--a),#00a8ff);border:none;border-radius:12px;color:var(--bg);font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;padding:15px;cursor:pointer;margin-top:8px;box-shadow:0 4px 20px rgba(0,212,170,.25)}
+.filter-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;margin-bottom:16px}
+.filter-row::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;background:var(--s1);border:1px solid var(--br);border-radius:20px;padding:6px 14px;font-size:.8rem;color:var(--tm);cursor:pointer;white-space:nowrap}
+.chip.active{background:rgba(0,212,170,.12);border-color:var(--a);color:var(--a);font-weight:500}
+.search-wrap{position:relative;margin-bottom:16px}
+.search-input{width:100%;background:var(--s1);border:1px solid var(--br);border-radius:12px;padding:11px 14px 11px 40px;color:var(--t);font-family:'DM Sans',sans-serif;font-size:.9rem;outline:none;transition:border-color .2s}
+.search-input:focus{border-color:var(--a)}
+.search-input::placeholder{color:var(--tm)}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--tm);pointer-events:none}
+.alerts{margin-bottom:16px;display:none}
+.alert-card{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.25);border-radius:12px;padding:11px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.alert-card.warn{background:rgba(255,209,102,.08);border-color:rgba(255,209,102,.25)}
+.alert-dot{width:8px;height:8px;border-radius:50%;background:var(--a2);flex-shrink:0;animation:pulse 1.5s ease-in-out infinite}
+.alert-card.warn .alert-dot{background:var(--a3);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.alert-text{font-size:.8rem;line-height:1.4}
+.section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--tm);margin-bottom:10px}
+.cards{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--s1);border:1px solid var(--br);border-radius:var(--r);overflow:hidden;display:flex;position:relative;cursor:pointer;transition:transform .15s}
+.card:active{transform:scale(.99)}
+.card.expired{border-color:rgba(255,107,107,.4)}
+.card.expiring{border-color:rgba(255,209,102,.4)}
+.card-img{width:78px;min-height:90px;flex-shrink:0;background:var(--s2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.card-img img{width:100%;height:100%;object-fit:cover}
+.card-img-ph{font-size:2rem;opacity:.3}
+.card-body{flex:1;padding:12px;display:flex;flex-direction:column;gap:3px}
+.card-name{font-family:'Syne',sans-serif;font-weight:700;font-size:.93rem;line-height:1.2}
+.card-sub{font-size:.72rem;color:var(--tm)}
+.card-sub.green{color:var(--a);font-style:normal}
+.eb{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 8px;border-radius:6px;font-size:.7rem;font-weight:600;width:fit-content}
+.eb-ok{background:rgba(0,212,170,.12);color:var(--a)}
+.eb-soon{background:rgba(255,209,102,.15);color:var(--a3)}
+.eb-exp{background:rgba(255,107,107,.15);color:var(--a2)}
+.eb-unk{background:rgba(122,154,181,.15);color:var(--tm)}
+.stock-mini{height:4px;background:var(--s2);border-radius:4px;overflow:hidden;margin-top:5px}
+.stock-mini-fill{height:100%;border-radius:4px}
+.card-actions{display:flex;flex-direction:column;gap:4px;padding:8px 8px 8px 0;justify-content:center}
+.icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--br);background:var(--s2);color:var(--tm);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.exp-badge{position:absolute;top:8px;right:8px;background:var(--a2);color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+.empty{text-align:center;padding:50px 20px}
+.empty-icon{font-size:4rem;margin-bottom:16px;opacity:.4}
+.empty-title{font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;margin-bottom:8px}
+.empty-text{color:var(--tm);font-size:.85rem;line-height:1.5}
+.detail-img{width:100%;height:200px;object-fit:contain;background:var(--s2);border-radius:12px 12px 0 0}
+.detail-img-ph{width:100%;height:200px;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:5rem;opacity:.3;border-radius:12px 12px 0 0}
+.detail-body{padding:20px}
+.detail-name{font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;margin-bottom:4px}
+.detail-sub{color:var(--tm);font-size:.85rem;font-style:italic;margin-bottom:14px}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.di{background:var(--s2);border-radius:10px;padding:12px}
+.di.full{grid-column:1/-1}
+.di-label{font-size:.68rem;color:var(--tm);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.di-value{font-family:'Syne',sans-serif;font-weight:600;font-size:.88rem}
+.ds{background:var(--s2);border-radius:10px;padding:13px;margin-bottom:10px}
+.ds.green{border-left:3px solid var(--a)}
+.ds.yellow{border-left:3px solid var(--a3)}
+.ds-label{font-size:.68rem;color:var(--tm);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.ds-text{font-size:.84rem;line-height:1.55;color:var(--tm)}
+.stock-bar{height:10px;background:var(--s1);border-radius:10px;overflow:hidden;flex:1}
+.stock-bar-fill{height:100%;border-radius:10px}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s2);border:1px solid var(--br);border-radius:12px;padding:12px 20px;font-size:.85rem;font-weight:500;z-index:500;opacity:0;transition:all .3s;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.success{border-color:rgba(0,212,170,.4)}
+.toast.error{border-color:rgba(255,107,107,.4)}
+.toast.warning{border-color:rgba(255,209,102,.4)}
+.nav{position:fixed;bottom:0;left:0;right:0;background:rgba(7,17,31,.95);backdrop-filter:blur(20px);border-top:1px solid var(--br);display:flex;z-index:50;max-width:480px;margin:0 auto}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 8px 14px;cursor:pointer;color:var(--tm);font-size:.65rem;font-weight:500}
+.nav-item.active{color:var(--a)}
+.nav-icon{font-size:1.3rem}
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <header>
   <div class="logo">Farma<span>Casa</span></div>
-  <div class="header-stats">
-    <div class="stat-badge"><span class="num" id="total-count">0</span> medicaments</div>
-  </div>
+  <div class="stat-badge"><b id="total-count">0</b> medicaments</div>
 </header>
 
-<!-- MAIN -->
 <main>
-  <!-- SCAN HERO -->
   <div class="scan-hero">
     <button class="scan-btn" onclick="openScanner()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:22px;height:22px;flex-shrink:0;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
         <line x1="7" y1="12" x2="17" y2="12" stroke-width="3"/>
         <line x1="7" y1="9" x2="7" y2="15" stroke-width="1.5"/>
@@ -744,234 +159,180 @@
       </svg>
       Escanejar codi DataMatrix
     </button>
-    <button class="manual-btn" onclick="openManualForm(null)">+ Afegir manualment</button>
+    <button class="manual-btn" onclick="openForm(null)">+ Afegir manualment</button>
   </div>
 
-  <!-- ALERTS -->
-  <div class="alerts-section" id="alerts-section"></div>
+  <div class="alerts" id="alerts"></div>
 
-  <!-- SEARCH -->
   <div class="search-wrap">
-    <span class="search-icon">🔍</span>
-    <input type="text" class="search-input" placeholder="Cercar medicament..." id="search-input" oninput="renderList()">
+    <span class="search-icon">&#128269;</span>
+    <input class="search-input" type="text" placeholder="Cercar medicament..." id="search-input" oninput="renderList()">
   </div>
 
-  <!-- FILTERS -->
-  <div class="filter-row" id="filter-row">
-    <div class="filter-chip active" data-filter="all" onclick="setFilter('all', this)">Tots</div>
-    <div class="filter-chip" data-filter="ok" onclick="setFilter('ok', this)">✅ Vàlids</div>
-    <div class="filter-chip" data-filter="expiring" onclick="setFilter('expiring', this)">⚠️ Caduquen aviat</div>
-    <div class="filter-chip" data-filter="expired" onclick="setFilter('expired', this)">❌ Caducats</div>
+  <div class="filter-row">
+    <div class="chip active" onclick="setFilter('all',this)">Tots</div>
+    <div class="chip" onclick="setFilter('ok',this)">&#10003; Valids</div>
+    <div class="chip" onclick="setFilter('expiring',this)">&#9888; Caduquen aviat</div>
+    <div class="chip" onclick="setFilter('expired',this)">&#10006; Caducats</div>
+    <div class="chip" onclick="setFilter('low',this)">&#128230; Poc stock</div>
   </div>
 
-  <!-- LIST -->
-  <div class="section-title" id="list-section-title">ELS MEUS MEDICAMENTS</div>
-  <div class="medicines-list" id="medicines-list"></div>
+  <div class="section-title" id="list-title">ELS MEUS MEDICAMENTS</div>
+  <div class="cards" id="cards"></div>
 </main>
 
-<!-- ─── SCANNER MODAL ─── -->
+<!-- SCANNER MODAL -->
 <div class="modal-overlay" id="scanner-modal">
   <div class="scanner-container">
     <div class="scanner-header">
-      <div class="scanner-title">📷 Escanejar codi de barres</div>
-      <button class="close-btn" onclick="closeScanner()">✕</button>
+      <div class="scanner-title">&#128247; Escanejar DataMatrix</div>
+      <button class="close-btn" onclick="closeScanner()">&#10005;</button>
     </div>
     <div id="video-container">
-      <video id="scanner-video" playsinline muted></video>
-      <div class="scan-overlay">
-        <div class="scan-frame"></div>
-      </div>
+      <video id="scanner-video" playsinline muted autoplay></video>
+      <div class="scan-overlay"><div class="scan-frame"></div></div>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 4px;">
-      <p class="scan-hint" style="margin:0;flex:1;">Col·loca el codi <strong style="color:var(--accent);">DataMatrix</strong> dins del requadre</p>
-      <button id="flash-btn" onclick="toggleFlash()" style="
-        flex-shrink:0;
-        margin-left:12px;
-        background:var(--surface2);
-        border:1px solid var(--border);
-        border-radius:12px;
-        color:var(--text-muted);
-        font-size:0.8rem;
-        font-weight:600;
-        padding:8px 14px;
-        cursor:pointer;
-        display:flex;align-items:center;gap:6px;
-        transition:all 0.2s;
-      ">
-        <span id="flash-icon">🔦</span>
-        <span id="flash-label">Flash</span>
-      </button>
+    <div class="scanner-footer">
+      <p class="scan-hint">Centra el codi <strong style="color:var(--a)">DataMatrix</strong> al requadre</p>
+      <button class="flash-btn" id="flash-btn" onclick="toggleFlash()">&#128294; Flash</button>
     </div>
   </div>
 </div>
 
-<!-- ─── LOOKUP MODAL ─── -->
+<!-- LOOKUP MODAL -->
 <div class="lookup-modal" id="lookup-modal">
   <div class="lookup-spinner"></div>
-  <div class="lookup-text">Cercant medicament...</div>
-  <div class="lookup-barcode" id="lookup-barcode-text"></div>
-  <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;text-align:center;padding:0 20px;">Identificant i buscant foto de la caixa…</div>
+  <div class="lookup-text" id="lookup-text">Cercant medicament...</div>
+  <div class="lookup-sub" id="lookup-sub"></div>
 </div>
 
-<!-- ─── FORM MODAL ─── -->
-<div class="form-modal" id="form-modal">
-  <div class="form-sheet">
+<!-- FORM SHEET -->
+<div class="sheet-modal" id="form-modal" onclick="if(event.target===this)closeForm()">
+  <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title" id="form-title">➕ Nou medicament</div>
+    <div class="sheet-title" id="form-title">&#10133; Nou medicament</div>
 
     <div class="form-group">
-      <label class="form-label">Nom del medicament *</label>
-      <input type="text" class="form-input" id="f-name" placeholder="Ex: Ibuprofè 600mg">
+      <label class="form-label">Nom *</label>
+      <input class="form-input" id="f-name" type="text" placeholder="Ex: Ibuprofè 600mg">
     </div>
     <div class="form-group">
       <label class="form-label">Principi actiu</label>
-      <input type="text" class="form-input" id="f-principle" placeholder="Ex: Ibuprofèn">
+      <input class="form-input" id="f-principle" type="text" placeholder="Ex: Ibuprofèn">
     </div>
     <div class="form-group">
       <label class="form-label">Laboratori / Fabricant</label>
-      <input type="text" class="form-input" id="f-manufacturer" placeholder="Ex: Bayer, Cinfa, Almirall...">
+      <input class="form-input" id="f-manufacturer" type="text" placeholder="Ex: Cinfa, Bayer, Almirall...">
     </div>
     <div class="form-group">
       <label class="form-label">Contingut</label>
-      <input type="text" class="form-input" id="f-content" placeholder="Ex: 20 comprimits, 500 ml, 30 càpsules...">
+      <input class="form-input" id="f-content" type="text" placeholder="Ex: 20 comprimits, 500 ml..." oninput="showStockField(this.value)">
     </div>
-    <div class="form-group" id="stock-group" style="display:none;">
-      <label class="form-label" id="stock-label">Unitats restants</label>
-      <div style="display:flex;align-items:center;gap:12px;">
-        <input type="range" id="f-stock-pct" min="0" max="100" value="100"
-          oninput="updateStockDisplay()"
-          style="flex:1;accent-color:var(--accent);height:6px;cursor:pointer;">
-        <div id="stock-display"
-          style="min-width:52px;text-align:center;font-family:Syne,sans-serif;font-weight:700;font-size:1rem;color:var(--accent);">
-          100%
-        </div>
+
+    <div class="form-group stock-group" id="stock-group">
+      <label class="form-label" id="stock-label">Quantitat restant</label>
+      <div class="stock-row">
+        <input type="range" id="f-stock-pct" min="0" max="100" value="100" oninput="updateStockDisplay()">
+        <div class="stock-display" id="stock-display">100%</div>
       </div>
-      <div style="display:flex;justify-content:space-between;margin-top:6px;">
-        <span style="font-size:0.7rem;color:var(--text-muted);">Buit</span>
-        <span id="stock-units-hint" style="font-size:0.7rem;color:var(--text-muted);"></span>
-        <span style="font-size:0.7rem;color:var(--text-muted);">Ple</span>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:.7rem;color:var(--tm)">Buit</span>
+        <span style="font-size:.7rem;color:var(--tm)" id="stock-hint"></span>
+        <span style="font-size:.7rem;color:var(--tm)">Ple</span>
       </div>
-      <input type="number" id="f-stock-units" min="0" placeholder="O introdueix les unitats exactes"
-        oninput="updateStockFromUnits()"
-        style="margin-top:10px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.9rem;padding:11px 14px;outline:none;">
+      <input class="form-input" id="f-stock-units" type="number" min="0" placeholder="O introdueix les unitats exactes" oninput="updateStockFromUnits()">
     </div>
+
     <div class="form-group">
-      <label class="form-label">Per a què serveix</label>
-      <textarea class="form-input" id="f-indications" placeholder="Ex: Tractament del dolor lleu o moderat..." rows="3" style="resize:none;line-height:1.5;"></textarea>
+      <label class="form-label">Per a que serveix</label>
+      <textarea class="form-input" id="f-indications" rows="3" placeholder="Indicacions terapèutiques..."></textarea>
     </div>
     <div class="form-group">
       <label class="form-label">Com utilitzar-lo</label>
-      <textarea class="form-input" id="f-usage" placeholder="Ex: Adults: 1 comprimit cada 8 hores..." rows="3" style="resize:none;line-height:1.5;"></textarea>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Codi de barres</label>
-      <input type="text" class="form-input" id="f-barcode" placeholder="Ex: 8470001234567">
+      <textarea class="form-input" id="f-usage" rows="3" placeholder="Dosi i forma d'administracio..."></textarea>
     </div>
     <div class="form-group">
       <label class="form-label">Data de caducitat</label>
-      <input type="month" class="form-input" id="f-expiry">
+      <input class="form-input" id="f-expiry" type="month">
     </div>
     <div class="form-group">
-      <label class="form-label">Quantitat / Unitats</label>
-      <input type="text" class="form-input" id="f-quantity" placeholder="Ex: 40 comprimits">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Foto de la caixa</label>
-      <div class="photo-upload-area" id="photo-upload-area">
-        <input type="file" accept="image/*" capture="environment" id="f-photo" onchange="handlePhotoUpload(event)">
-        <img class="photo-preview" id="photo-preview" src="" alt="Foto">
-        <div class="photo-placeholder" id="photo-placeholder">
-          <div class="icon">📸</div>
-          <div>Toca per fer una foto o pujar-ne una</div>
-        </div>
-      </div>
+      <label class="form-label">Codi</label>
+      <input class="form-input" id="f-barcode" type="text" placeholder="Ex: 8470001234567">
     </div>
     <div class="form-group">
       <label class="form-label">Notes</label>
-      <input type="text" class="form-input" id="f-notes" placeholder="Ex: Prendre amb menjar">
+      <input class="form-input" id="f-notes" type="text" placeholder="Ex: Prendre amb menjar">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Foto de la caixa</label>
+      <div class="photo-area">
+        <input type="file" accept="image/*" capture="environment" onchange="handlePhoto(event)">
+        <img class="photo-preview" id="photo-preview" src="" alt="">
+        <div class="photo-placeholder" id="photo-ph"><div class="icon">&#128248;</div><div>Toca per fer una foto</div></div>
+      </div>
     </div>
 
-    <input type="hidden" id="f-edit-id">
-    <input type="hidden" id="f-image-data">
+    <input type="hidden" id="f-id">
+    <input type="hidden" id="f-img">
 
-    <button class="save-btn" onclick="saveMedicine()">
-      <span id="save-btn-text">Guardar medicament</span>
-    </button>
-    <button class="manual-btn" style="width:100%;margin-top:10px;" onclick="closeForm()">Cancel·lar</button>
+    <button class="save-btn" onclick="saveMedicine()"><span id="save-btn-text">Guardar medicament</span></button>
+    <button class="manual-btn" style="width:100%;margin-top:10px" onclick="closeForm()">Cancel·lar</button>
   </div>
 </div>
 
-<!-- ─── DETAIL MODAL ─── -->
-<div class="detail-modal" id="detail-modal">
-  <div class="detail-sheet" id="detail-sheet-content"></div>
+<!-- DETAIL SHEET -->
+<div class="sheet-modal" id="detail-modal" onclick="if(event.target===this)closeDetail()">
+  <div class="sheet" id="detail-content"></div>
 </div>
 
-<!-- ─── TOAST ─── -->
 <div class="toast" id="toast"></div>
 
-<!-- ─── BOTTOM NAV ─── -->
-<nav class="bottom-nav">
-  <div class="nav-item active">
-    <div class="nav-icon">💊</div>
-    <div>Inici</div>
-  </div>
-  <div class="nav-item" onclick="showStats()">
-    <div class="nav-icon">📊</div>
-    <div>Estadístiques</div>
-  </div>
-  <div class="nav-item" onclick="exportData()">
-    <div class="nav-icon">📤</div>
-    <div>Exportar</div>
-  </div>
+<nav class="nav">
+  <div class="nav-item active"><div class="nav-icon">&#128138;</div><div>Inici</div></div>
+  <div class="nav-item" onclick="showStats()"><div class="nav-icon">&#128202;</div><div>Stats</div></div>
+  <div class="nav-item" onclick="exportData()"><div class="nav-icon">&#128228;</div><div>Exportar</div></div>
 </nav>
 
 <script>
-// ─── STATE ───
-let medicines = JSON.parse(localStorage.getItem('farmacasa_medicines') || '[]');
-let currentFilter = 'all';
-let editId = null;
-let scannerActive = false;
-let codeReader = null;
+var medicines = JSON.parse(localStorage.getItem('farmacasa') || '[]');
+var currentFilter = 'all';
+var scannerActive = false;
+var codeReader = null;
+var flashOn = false;
 
-// ─── INIT ───
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
   renderList();
   renderAlerts();
 });
 
-// ─── STORAGE ───
 function save() {
-  localStorage.setItem('farmacasa_medicines', JSON.stringify(medicines));
+  localStorage.setItem('farmacasa', JSON.stringify(medicines));
 }
 
-// ─── EXPIRY UTILS ───
-function getExpiryStatus(expiryStr) {
-  if (!expiryStr) return 'unknown';
-  const now = new Date();
-  const expiry = new Date(expiryStr + '-01');
-  expiry.setMonth(expiry.getMonth() + 1, 0); // last day of month
-  const diff = (expiry - now) / (1000 * 60 * 60 * 24);
+function expiryStatus(exp) {
+  if (!exp) return 'unknown';
+  var d = new Date(exp + '-01');
+  d.setMonth(d.getMonth() + 1, 0);
+  var diff = (d - new Date()) / 86400000;
   if (diff < 0) return 'expired';
   if (diff <= 60) return 'expiring';
   return 'ok';
 }
 
-function getExpiryLabel(expiryStr) {
-  if (!expiryStr) return 'Sense data';
-  const [year, month] = expiryStr.split('-');
-  const months = ['Gen','Feb','Mar','Abr','Mai','Jun','Jul','Ago','Set','Oct','Nov','Des'];
-  return `${months[parseInt(month)-1]} ${year}`;
+function expiryLabel(exp) {
+  if (!exp) return 'Sense data';
+  var p = exp.split('-');
+  var m = ['Gen','Feb','Mar','Abr','Mai','Jun','Jul','Ago','Set','Oct','Nov','Des'];
+  return m[parseInt(p[1])-1] + ' ' + p[0];
 }
 
-function getDaysLeft(expiryStr) {
-  if (!expiryStr) return null;
-  const expiry = new Date(expiryStr + '-01');
-  expiry.setMonth(expiry.getMonth() + 1, 0);
-  const diff = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24));
-  return diff;
+function daysLeft(exp) {
+  if (!exp) return null;
+  var d = new Date(exp + '-01');
+  d.setMonth(d.getMonth() + 1, 0);
+  return Math.ceil((d - new Date()) / 86400000);
 }
 
-// ─── STOCK HELPERS ───
 function stockColor(pct) {
   if (pct <= 15) return '#ff6b6b';
   if (pct <= 35) return '#ffd166';
@@ -980,288 +341,198 @@ function stockColor(pct) {
 
 function stockLabel(m) {
   if (m.stockUnits) return m.stockUnits + ' u.';
-  const pct = m.stockPct ?? 100;
-  if (pct === 100) return 'Ple';
+  var pct = m.stockPct !== undefined ? m.stockPct : 100;
+  if (pct >= 100) return 'Ple';
   if (pct === 0) return 'Buit';
   return pct + '%';
 }
 
-// Detecta si el contingut és en ml/l (líquid) o unitats (comprimits, càpsules...)
-function stockType(contentStr) {
-  if (!contentStr) return 'pct';
-  const lower = contentStr.toLowerCase();
-  if (/ml|l|litre|líquid|xarop|solució|suspensió|got|ampolla/.test(lower)) return 'ml';
-  const match = lower.match(/(\d+)\s*(comprimits?|càpsules?|capsules?|grageas?|pastilles?|sobres?|vials?|ampolles?|patches?|pegats?)/);
-  if (match) return 'units:' + match[1];
-  return 'pct';
-}
-
-function showStockField(contentStr) {
-  const group = document.getElementById('stock-group');
-  const label = document.getElementById('stock-label');
-  const hint = document.getElementById('stock-units-hint');
-  const unitsInput = document.getElementById('f-stock-units');
-  group.style.display = 'block';
-  const type = stockType(contentStr);
-  if (type.startsWith('units:')) {
-    const total = parseInt(type.split(':')[1]);
-    label.textContent = 'Unitats restants';
-    hint.textContent = 'de ' + total + ' unitats';
-    unitsInput.placeholder = 'Ex: ' + total + ' (total)';
-    unitsInput.max = total;
-    unitsInput.dataset.total = total;
-  } else if (type === 'ml') {
-    const match = contentStr.match(/(\d+)\s*ml/i);
-    const total = match ? match[1] : '';
-    label.textContent = 'Volum restant (%)';
-    hint.textContent = total ? 'de ' + total + ' ml' : '';
-    unitsInput.placeholder = total ? 'O introdueix els ml exactes (màx ' + total + ')' : 'ml exactes';
-    unitsInput.max = total || 9999;
-    unitsInput.dataset.total = total || 0;
-  } else {
-    label.textContent = 'Quantitat restant';
-    hint.textContent = '';
-    unitsInput.placeholder = 'Unitats exactes (opcional)';
-    unitsInput.dataset.total = 0;
-  }
-  updateStockDisplay();
-}
-
 function updateStockDisplay() {
-  const pct = parseInt(document.getElementById('f-stock-pct').value);
-  const display = document.getElementById('stock-display');
-  const total = parseInt(document.getElementById('f-stock-units').dataset?.total || 0);
-  if (total > 0) {
-    const units = Math.round(total * pct / 100);
-    display.textContent = units + ' u.';
-  } else {
-    display.textContent = pct + '%';
-  }
-  display.style.color = stockColor(pct);
+  var pct = parseInt(document.getElementById('f-stock-pct').value);
+  var el = document.getElementById('stock-display');
+  var tot = parseInt(document.getElementById('f-stock-units').dataset.total || '0');
+  el.textContent = tot > 0 ? Math.round(tot * pct / 100) + ' u.' : pct + '%';
+  el.style.color = stockColor(pct);
 }
 
 function updateStockFromUnits() {
-  const val = parseInt(document.getElementById('f-stock-units').value);
-  const total = parseInt(document.getElementById('f-stock-units').dataset?.total || 0);
-  if (!isNaN(val) && total > 0) {
-    const pct = Math.min(100, Math.round(val * 100 / total));
-    document.getElementById('f-stock-pct').value = pct;
+  var val = parseInt(document.getElementById('f-stock-units').value);
+  var tot = parseInt(document.getElementById('f-stock-units').dataset.total || '0');
+  if (!isNaN(val) && tot > 0) {
+    document.getElementById('f-stock-pct').value = Math.min(100, Math.round(val * 100 / tot));
     updateStockDisplay();
   }
 }
 
-// ─── RENDER LIST ───
+function showStockField(contentStr) {
+  var g = document.getElementById('stock-group');
+  g.style.display = 'block';
+  var units = document.getElementById('f-stock-units');
+  if (!contentStr) { units.dataset.total = '0'; return; }
+  var lower = contentStr.toLowerCase();
+  var mlM = lower.match(/(\d+)\s*ml/);
+  var unitM = lower.match(/(\d+)\s*(comprimits|capsules|capsulas|pastilles|sobres)/);
+  var label = document.getElementById('stock-label');
+  var hint = document.getElementById('stock-hint');
+  if (mlM) {
+    label.textContent = 'Volum restant (%)';
+    hint.textContent = 'de ' + mlM[1] + ' ml';
+    units.placeholder = 'O introdueix ml exactes';
+    units.dataset.total = mlM[1];
+  } else if (unitM) {
+    label.textContent = 'Unitats restants';
+    hint.textContent = 'de ' + unitM[1] + ' unitats';
+    units.placeholder = 'Ex: ' + unitM[1];
+    units.dataset.total = unitM[1];
+  } else {
+    label.textContent = 'Quantitat restant';
+    hint.textContent = '';
+    units.dataset.total = '0';
+  }
+  updateStockDisplay();
+}
+
 function renderList() {
-  const search = document.getElementById('search-input').value.toLowerCase();
-  const container = document.getElementById('medicines-list');
-  const title = document.getElementById('list-section-title');
-
-  let filtered = medicines.filter(m => {
-    const matchSearch = !search ||
-      m.name.toLowerCase().includes(search) ||
-      (m.principle || '').toLowerCase().includes(search) ||
-      (m.barcode || '').includes(search);
-    if (!matchSearch) return false;
+  var search = document.getElementById('search-input').value.toLowerCase();
+  var list = medicines.filter(function(m) {
+    var ms = !search || m.name.toLowerCase().indexOf(search) >= 0 ||
+      (m.principle || '').toLowerCase().indexOf(search) >= 0 ||
+      (m.barcode || '').indexOf(search) >= 0;
+    if (!ms) return false;
     if (currentFilter === 'all') return true;
-    return getExpiryStatus(m.expiry) === currentFilter;
+    if (currentFilter === 'low') { var p = m.stockPct !== undefined ? m.stockPct : 100; return p <= 15 && p > 0; }
+    return expiryStatus(m.expiry) === currentFilter;
   });
-
   document.getElementById('total-count').textContent = medicines.length;
-  title.textContent = `${filtered.length} MEDICAMENT${filtered.length !== 1 ? 'S' : ''}`;
-
-  if (filtered.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">💊</div>
-        <div class="empty-title">${medicines.length === 0 ? "La teva farmaciola és buida" : "Cap resultat"}</div>
-        <div class="empty-text">${medicines.length === 0
-          ? "Escaneja el codi de barres d'un medicament o afegeix-lo manualment."
-          : "Prova amb un altre terme de cerca o filtre."}</div>
-      </div>`;
+  document.getElementById('list-title').textContent = list.length + ' MEDICAMENT' + (list.length !== 1 ? 'S' : '');
+  var container = document.getElementById('cards');
+  if (!list.length) {
+    container.innerHTML = '<div class="empty"><div class="empty-icon">&#128138;</div><div class="empty-title">' + (medicines.length === 0 ? 'La farmaciola es buida' : 'Cap resultat') + '</div><div class="empty-text">' + (medicines.length === 0 ? 'Escaneja un medicament o afegeix-lo manualment.' : 'Prova un altre filtre.') + '</div></div>';
     return;
   }
-
-  // Sort: expired last within expiring, then ok
-  filtered.sort((a, b) => {
-    const order = { expired: 2, expiring: 1, ok: 0, unknown: 3 };
-    return order[getExpiryStatus(a.expiry)] - order[getExpiryStatus(b.expiry)];
+  list.sort(function(a, b) {
+    var o = {expired:2,expiring:1,ok:0,unknown:3};
+    return o[expiryStatus(a.expiry)] - o[expiryStatus(b.expiry)];
   });
-
-  container.innerHTML = filtered.map(m => {
-    const status = getExpiryStatus(m.expiry);
-    const days = getDaysLeft(m.expiry);
-    let expiryClass = 'expiry-unknown';
-    let expiryIcon = '📅';
-    let expiryText = getExpiryLabel(m.expiry);
-    if (status === 'expired') { expiryClass = 'expiry-expired'; expiryIcon = '❌'; expiryText = `Caducat · ${getExpiryLabel(m.expiry)}`; }
-    else if (status === 'expiring') { expiryClass = 'expiry-soon'; expiryIcon = '⚠️'; expiryText = `${days}d · ${getExpiryLabel(m.expiry)}`; }
-    else if (status === 'ok') { expiryClass = 'expiry-ok'; expiryIcon = '✅'; expiryText = `${getExpiryLabel(m.expiry)}`; }
-
-    const imgHtml = m.image
-      ? `<img src="${m.image}" alt="${m.name}">`
-      : `<div class="card-image-placeholder">💊</div>`;
-
-    return `
-      <div class="medicine-card ${status === 'expired' ? 'expired' : ''} ${status === 'expiring' ? 'expiring-soon' : ''}" onclick="showDetail('${m.id}')">
-        <div class="card-image">${imgHtml}</div>
-        <div class="card-content">
-          <div class="card-name">${m.name}</div>
-          ${m.principle ? `<div class="card-principle">${m.principle}</div>` : ''}
-          ${m.manufacturer ? `<div class="card-principle" style="color:var(--text-muted);">🏭 ${m.manufacturer}</div>` : ''}
-          ${m.content ? `<div class="card-principle" style="color:var(--accent);font-style:normal;font-size:0.72rem;">📦 ${m.content}${m.stockPct !== undefined && m.stockPct < 100 ? ' · <span style="color:' + stockColor(m.stockPct) + ';">' + stockLabel(m) + '</span>' : ''}</div>` : ''}
-          ${m.content === undefined && m.stockPct !== undefined && m.stockPct < 100 ? `<div class="card-principle" style="color:${stockColor(m.stockPct)};font-style:normal;font-size:0.72rem;">${stockLabel(m)}</div>` : ''}
-          ${m.barcode ? `<div class="card-barcode">▌▌▌ ${m.barcode}</div>` : ''}
-          <div class="card-expiry ${expiryClass}">${expiryIcon} ${expiryText}</div>
-        </div>
-        <div class="card-actions">
-          <button class="icon-btn" onclick="event.stopPropagation(); openEditForm('${m.id}')">✏️</button>
-          <button class="icon-btn delete" onclick="event.stopPropagation(); deleteMedicine('${m.id}')">🗑️</button>
-        </div>
-        ${status === 'expired' ? '<div class="expired-badge">Caducat</div>' : ''}
-      </div>`;
+  container.innerHTML = list.map(function(m) {
+    var st = expiryStatus(m.expiry);
+    var days = daysLeft(m.expiry);
+    var ebc = 'eb-unk', ebt = expiryLabel(m.expiry);
+    if (st === 'expired') { ebc = 'eb-exp'; ebt = 'Caducat &middot; ' + expiryLabel(m.expiry); }
+    else if (st === 'expiring') { ebc = 'eb-soon'; ebt = days + 'd &middot; ' + expiryLabel(m.expiry); }
+    else if (st === 'ok') { ebc = 'eb-ok'; ebt = expiryLabel(m.expiry); }
+    var pct = m.stockPct !== undefined ? m.stockPct : 100;
+    return '<div class="card' + (st==='expired'?' expired':st==='expiring'?' expiring':'') + '" onclick="showDetail(\'' + m.id + '\')">' +
+      '<div class="card-img">' + (m.image ? '<img src="' + m.image + '" alt="">' : '<div class="card-img-ph">&#128138;</div>') + '</div>' +
+      '<div class="card-body">' +
+        '<div class="card-name">' + m.name + '</div>' +
+        (m.principle ? '<div class="card-sub">' + m.principle + '</div>' : '') +
+        (m.manufacturer ? '<div class="card-sub">&#127981; ' + m.manufacturer + '</div>' : '') +
+        (m.content ? '<div class="card-sub green">&#128230; ' + m.content + '</div>' : '') +
+        '<div class="eb ' + ebc + '">' + ebt + '</div>' +
+        (pct < 100 ? '<div class="stock-mini"><div class="stock-mini-fill" style="width:' + pct + '%;background:' + stockColor(pct) + '"></div></div>' : '') +
+      '</div>' +
+      '<div class="card-actions">' +
+        '<button class="icon-btn" onclick="event.stopPropagation();openForm(\'' + m.id + '\')">&#9999;</button>' +
+        '<button class="icon-btn" onclick="event.stopPropagation();deleteMedicine(\'' + m.id + '\')">&#128465;</button>' +
+      '</div>' +
+      (st === 'expired' ? '<div class="exp-badge">Caducat</div>' : '') +
+    '</div>';
   }).join('');
 }
 
-// ─── ALERTS ───
 function renderAlerts() {
-  const section = document.getElementById('alerts-section');
-  const expired = medicines.filter(m => getExpiryStatus(m.expiry) === 'expired');
-  const expiring = medicines.filter(m => getExpiryStatus(m.expiry) === 'expiring');
-
-  const lowStock = medicines.filter(m => (m.stockPct ?? 100) <= 15 && (m.stockPct ?? 100) > 0);
-  if (expired.length === 0 && expiring.length === 0 && lowStock.length === 0) {
-    section.style.display = 'none';
-    return;
-  }
-  section.style.display = 'block';
-  let html = '';
-  if (lowStock.length > 0) {
-    html += `<div class="alert-card warning"><div class="alert-dot" style="background:#ff6b6b;animation:pulse 1.5s ease-in-out infinite;"></div><div class="alert-text"><strong>${lowStock.length} medicament${lowStock.length > 1 ? 's' : ''} amb poc stock</strong> — ${lowStock.map(m => m.name).join(', ')}.</div></div>`;
-  }
-  if (expired.length > 0) {
-    html += `<div class="alert-card"><div class="alert-dot"></div><div class="alert-text"><strong>${expired.length} medicament${expired.length > 1 ? 's' : ''} caducat${expired.length > 1 ? 's' : ''}</strong> — Cal revisar-los i llençar-los.</div></div>`;
-  }
-  if (expiring.length > 0) {
-    html += `<div class="alert-card warning"><div class="alert-dot"></div><div class="alert-text"><strong>${expiring.length} medicament${expiring.length > 1 ? 's' : ''}</strong> caduquen en menys de 60 dies.</div></div>`;
-  }
-  section.innerHTML = html;
+  var expired = medicines.filter(function(m) { return expiryStatus(m.expiry) === 'expired'; });
+  var expiring = medicines.filter(function(m) { return expiryStatus(m.expiry) === 'expiring'; });
+  var low = medicines.filter(function(m) { var p = m.stockPct !== undefined ? m.stockPct : 100; return p <= 15 && p > 0; });
+  var el = document.getElementById('alerts');
+  if (!expired.length && !expiring.length && !low.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  var h = '';
+  if (low.length) h += '<div class="alert-card"><div class="alert-dot"></div><div class="alert-text"><strong>' + low.length + ' medicament' + (low.length>1?'s':'') + ' amb poc stock</strong></div></div>';
+  if (expired.length) h += '<div class="alert-card"><div class="alert-dot"></div><div class="alert-text"><strong>' + expired.length + ' caducat' + (expired.length>1?'s':'') + '</strong> — Revisa\'ls.</div></div>';
+  if (expiring.length) h += '<div class="alert-card warn"><div class="alert-dot"></div><div class="alert-text"><strong>' + expiring.length + ' caduquen aviat</strong> (menys de 60 dies).</div></div>';
+  el.innerHTML = h;
 }
 
-// ─── FILTER ───
 function setFilter(f, el) {
   currentFilter = f;
-  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.chip').forEach(function(c) { c.classList.remove('active'); });
   el.classList.add('active');
   renderList();
 }
 
-
-// ─── SCANNER ───
-async function openScanner() {
+function openScanner() {
   document.getElementById('scanner-modal').classList.add('active');
   scannerActive = true;
-
-  const video = document.getElementById('scanner-video');
-  if (video.srcObject) {
-    video.srcObject.getTracks().forEach(t => t.stop());
-    video.srcObject = null;
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      },
-      audio: false
-    });
-    video.srcObject = stream;
-    video.setAttribute('playsinline', true);
-    video.muted = true;
-    await video.play();
-    startBarcodeScanning(video);
-  } catch(err) {
-    closeScanner();
-    showToast('Error de càmera: ' + (err.message || err), 'error');
-  }
+  var video = document.getElementById('scanner-video');
+  if (video.srcObject) { video.srcObject.getTracks().forEach(function(t) { t.stop(); }); video.srcObject = null; }
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
+    .then(function(stream) { video.srcObject = stream; video.muted = true; return video.play(); })
+    .then(function() { startScanning(video); })
+    .catch(function(err) { closeScanner(); showToast('Error de camara: ' + err.message, 'error'); });
 }
 
 function closeScanner() {
   scannerActive = false;
-  if (window._scanFrameId) { cancelAnimationFrame(window._scanFrameId); window._scanFrameId = null; }
-  if (codeReader) {
-    try { codeReader.reset(); } catch(e) {}
-    codeReader = null;
-  }
-  const video = document.getElementById('scanner-video');
+  if (window._scanFrame) { cancelAnimationFrame(window._scanFrame); window._scanFrame = null; }
+  if (codeReader) { try { codeReader.reset(); } catch(e) {} codeReader = null; }
+  var video = document.getElementById('scanner-video');
   if (video.srcObject) {
-    const track = video.srcObject.getVideoTracks()[0];
-    if (track && flashOn) {
-      try { track.applyConstraints({ advanced: [{ torch: false }] }); } catch(e) {}
-    }
-    video.srcObject.getTracks().forEach(t => t.stop());
+    var track = video.srcObject.getVideoTracks()[0];
+    if (track && flashOn) { try { track.applyConstraints({ advanced: [{ torch: false }] }); } catch(e) {} }
+    video.srcObject.getTracks().forEach(function(t) { t.stop(); });
     video.srcObject = null;
   }
   resetFlash();
   document.getElementById('scanner-modal').classList.remove('active');
 }
 
-function startBarcodeScanning(video) {
+function startScanning(video) {
   try {
-    const hints = new Map();
+    var hints = new Map();
     hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.DATA_MATRIX,
-      ZXing.BarcodeFormat.QR_CODE,
-      ZXing.BarcodeFormat.EAN_13,
-      ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.CODE_128,
-      ZXing.BarcodeFormat.ITF,
+      ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.QR_CODE,
+      ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.ITF
     ]);
     hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
     codeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
-    codeReader.decodeFromStream(video.srcObject, video, (result, err) => {
+    codeReader.decodeFromStream(video.srcObject, video, function(result) {
       if (result && scannerActive) {
-        const raw = result.getText();
-        const parsed = parseDataMatrix(raw);
+        var raw = result.getText();
+        var parsed = parseDataMatrix(raw);
         scannerActive = false;
         if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
         closeScanner();
         lookupMedicine(parsed.cn || raw, parsed);
       }
     });
-  } catch(e) {
-    startCanvasScanning(video);
-  }
+  } catch(e) { startCanvasScanning(video); }
 }
 
 function startCanvasScanning(video) {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const hints = new Map();
+  var canvas = document.createElement('canvas');
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  var hints = new Map();
   hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.DATA_MATRIX,
-    ZXing.BarcodeFormat.QR_CODE,
-    ZXing.BarcodeFormat.EAN_13,
-    ZXing.BarcodeFormat.EAN_8,
-    ZXing.BarcodeFormat.CODE_128,
+    ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.QR_CODE,
+    ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.CODE_128
   ]);
   hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  const reader = new ZXing.BrowserMultiFormatReader(hints);
-
-  async function tick() {
+  var reader = new ZXing.BrowserMultiFormatReader(hints);
+  function tick() {
     if (!scannerActive) return;
-    if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+    if (video.readyState === 4 && video.videoWidth > 0) {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0);
       try {
-        const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-        const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-        const result = reader.decode(bitmap);
+        var lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+        var bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+        var result = reader.decode(bmp);
         if (result && scannerActive) {
-          const raw = result.getText();
-          const parsed = parseDataMatrix(raw);
+          var raw = result.getText();
+          var parsed = parseDataMatrix(raw);
           scannerActive = false;
           if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
           closeScanner();
@@ -1270,545 +541,298 @@ function startCanvasScanning(video) {
         }
       } catch(e) {}
     }
-    window._scanFrameId = requestAnimationFrame(tick);
+    window._scanFrame = requestAnimationFrame(tick);
   }
-  window._scanFrameId = requestAnimationFrame(tick);
+  window._scanFrame = requestAnimationFrame(tick);
 }
 
 function parseDataMatrix(raw) {
-  const result = { raw, cn: null, expiry: null, lot: null, serial: null };
+  var result = { raw: raw, cn: null, expiry: null, lot: null };
   try {
-    const clean = raw.replace(/[\x1d\x1e\x04]/g, '|').replace(/\)>06\|?/, '');
-    const parts = clean.split('|');
-    for (const part of parts) {
-      if (part.startsWith('01') && part.length >= 16) {
-        const gtin = part.substring(2, 16);
-        result.cn = gtin.replace(/^0+/, '');
-      } else if (part.startsWith('17') && part.length >= 8) {
-        const d = part.substring(2, 8);
-        result.expiry = '20' + d.substring(0,2) + '-' + d.substring(2,4);
-      } else if (part.startsWith('10')) {
-        result.lot = part.substring(2);
-      } else if (part.startsWith('21')) {
-        result.serial = part.substring(2);
-      }
+    var clean = raw.replace(/[\x1d\x1e\x04]/g, '|').replace(/\)>06\|?/, '');
+    var parts = clean.split('|');
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      if (p.length >= 16 && p.substring(0,2) === '01') result.cn = p.substring(2,16).replace(/^0+/, '');
+      else if (p.length >= 8 && p.substring(0,2) === '17') { var d = p.substring(2,8); result.expiry = '20'+d.substring(0,2)+'-'+d.substring(2,4); }
+      else if (p.substring(0,2) === '10') result.lot = p.substring(2);
     }
   } catch(e) {}
   return result;
 }
 
-// ─── FLASH / TORXA ───
-let flashOn = false;
-
-async function toggleFlash() {
-  const video = document.getElementById('scanner-video');
+function toggleFlash() {
+  var video = document.getElementById('scanner-video');
   if (!video.srcObject) return;
-
-  const track = video.srcObject.getVideoTracks()[0];
+  var track = video.srcObject.getVideoTracks()[0];
   if (!track) return;
-
-  const capabilities = track.getCapabilities?.() || {};
-  if (!capabilities.torch) {
-    showToast('Aquest dispositiu no suporta el flash', 'warning');
-    return;
-  }
-
+  var cap = track.getCapabilities ? track.getCapabilities() : {};
+  if (!cap.torch) { showToast('Aquest dispositiu no suporta el flash', 'warning'); return; }
   flashOn = !flashOn;
-  try {
-    await track.applyConstraints({ advanced: [{ torch: flashOn }] });
-    const btn = document.getElementById('flash-btn');
-    const icon = document.getElementById('flash-icon');
-    const label = document.getElementById('flash-label');
-    if (flashOn) {
-      btn.style.background = 'rgba(255,209,102,0.15)';
-      btn.style.borderColor = 'rgba(255,209,102,0.5)';
-      btn.style.color = '#ffd166';
-      icon.textContent = '💡';
-      label.textContent = 'Apagar';
-    } else {
-      btn.style.background = 'var(--surface2)';
-      btn.style.borderColor = 'var(--border)';
-      btn.style.color = 'var(--text-muted)';
-      icon.textContent = '🔦';
-      label.textContent = 'Flash';
-    }
-  } catch(e) {
-    showToast('No s'ha pogut activar el flash', 'error');
-    flashOn = !flashOn;
-  }
+  track.applyConstraints({ advanced: [{ torch: flashOn }] }).then(function() {
+    var btn = document.getElementById('flash-btn');
+    if (flashOn) { btn.style.cssText += ';background:rgba(255,209,102,.15);border-color:rgba(255,209,102,.5);color:#ffd166'; btn.innerHTML = '&#128161; Apagar'; }
+    else { resetFlash(); }
+  }).catch(function() { showToast('No s\'ha pogut activar el flash', 'error'); flashOn = !flashOn; });
 }
 
 function resetFlash() {
   flashOn = false;
-  const btn = document.getElementById('flash-btn');
-  const icon = document.getElementById('flash-icon');
-  const label = document.getElementById('flash-label');
-  if (btn) {
-    btn.style.background = 'var(--surface2)';
-    btn.style.borderColor = 'var(--border)';
-    btn.style.color = 'var(--text-muted)';
-  }
-  if (icon) icon.textContent = '🔦';
-  if (label) label.textContent = 'Flash';
+  var btn = document.getElementById('flash-btn');
+  if (btn) { btn.style.background = 'var(--s2)'; btn.style.borderColor = 'var(--br)'; btn.style.color = 'var(--tm)'; btn.innerHTML = '&#128294; Flash'; }
 }
 
+function setLookupText(t, s) {
+  document.getElementById('lookup-text').textContent = t;
+  document.getElementById('lookup-sub').textContent = s || '';
+}
 
-// ─── MEDICINE LOOKUP ───
-async function lookupMedicine(barcode, dmParsed = null) {
+function lookupMedicine(barcode, dmParsed) {
   document.getElementById('lookup-modal').classList.add('active');
-  document.getElementById('lookup-barcode-text').textContent = barcode;
+  setLookupText('Cercant medicament...', barcode);
+  var found = { barcode: barcode, name: '', principle: '', manufacturer: '', content: '', indications: '', usage: '', image: null, expiry: null, lot: null };
+  if (dmParsed) { if (dmParsed.expiry) found.expiry = dmParsed.expiry; if (dmParsed.lot) found.lot = dmParsed.lot; }
 
-  try {
-    let found = { barcode, name: '', principle: '', image: null };
-
-    // 1. Open Food Facts — millor font per a fotos de caixes
-    try {
-      const resp = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.status === 1 && data.product) {
-          const p = data.product;
-          found.name = p.product_name || p.generic_name || found.name;
-          // Preferim la foto frontal de l'envàs
-          found.image =
-            p.image_front_url ||
-            p.image_front_small_url ||
-            p.image_url ||
-            found.image;
-        }
+  fetch('https://world.openfoodfacts.org/api/v0/product/' + barcode + '.json')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.status === 1 && data.product) {
+        var p = data.product;
+        if (!found.name) found.name = p.product_name || p.generic_name || '';
+        if (!found.image) found.image = p.image_front_url || p.image_url || null;
       }
-    } catch(e) {}
-
-    // 2. OpenFDA (medicaments EUA, útil per principi actiu)
-    try {
-      const resp = await fetch(`https://api.fda.gov/drug/ndc.json?search=package_ndc:"${barcode}"&limit=1`);
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.results?.length > 0) {
-          const r = data.results[0];
-          if (!found.name) found.name = r.brand_name || r.generic_name || '';
-          found.principle = r.generic_name || found.principle;
-        }
+    }).catch(function() {})
+    .then(function() {
+      setLookupText('Identificant amb IA...', '');
+      return askClaude(barcode, found.name);
+    })
+    .then(function(ai) {
+      if (ai) {
+        if (!found.name && ai.name) found.name = ai.name;
+        if (!found.principle && ai.principle) found.principle = ai.principle;
+        if (!found.manufacturer && ai.manufacturer) found.manufacturer = ai.manufacturer;
+        if (!found.content && ai.content) found.content = ai.content;
+        if (!found.indications && ai.indications) found.indications = ai.indications;
+        if (!found.usage && ai.usage) found.usage = ai.usage;
+        if (!found.image && ai.imageUrl) found.image = ai.imageUrl;
       }
-    } catch(e) {}
-
-    // 3. Claude AI: identifica el medicament I cerca la foto
-    setLookupText('Identificant amb IA…');
-    const aiResult = await askClaudeAboutBarcode(barcode, found.name);
-    if (aiResult) {
-      if (!found.name && aiResult.name) found.name = aiResult.name;
-      if (!found.principle && aiResult.principle) found.principle = aiResult.principle;
-      if (!found.manufacturer && aiResult.manufacturer) found.manufacturer = aiResult.manufacturer;
-      if (!found.content && aiResult.content) found.content = aiResult.content;
-      if (!found.indications && aiResult.indications) found.indications = aiResult.indications;
-      if (!found.usage && aiResult.usage) found.usage = aiResult.usage;
-      if (!found.image && aiResult.imageUrl) found.image = aiResult.imageUrl;
-      // Si tenim nom però no foto, busquem foto per nom
-      if (!found.image && found.name) {
-        setLookupText('Cercant foto de la caixa…');
-        found.image = await fetchMedicinePhoto(found.name, barcode);
-      }
-    } else if (found.name && !found.image) {
-      setLookupText('Cercant foto de la caixa…');
-      found.image = await fetchMedicinePhoto(found.name, barcode);
-    }
-
-    document.getElementById('lookup-modal').classList.remove('active');
-
-    // Omple el formulari
-    openManualForm(null);
-    document.getElementById('f-name').value = found.name || '';
-    document.getElementById('f-principle').value = found.principle || '';
-    document.getElementById('f-manufacturer').value = found.manufacturer || '';
-    document.getElementById('f-content').value = found.content || '';
-    document.getElementById('f-indications').value = found.indications || '';
-    document.getElementById('f-usage').value = found.usage || '';
-    if (found.content) { showStockField(found.content); }
-    document.getElementById('f-barcode').value = barcode;
-    // Si ve d'un DataMatrix farmacèutic, pre-omplem data caducitat i lot
-    if (dmParsed?.expiry) document.getElementById('f-expiry').value = dmParsed.expiry;
-    if (dmParsed?.lot) document.getElementById('f-notes').value = (document.getElementById('f-notes').value ? document.getElementById('f-notes').value + ' | ' : '') + 'Lot: ' + dmParsed.lot;
-
-    if (found.image) {
-      setFormPhoto(found.image);
-    }
-
-    if (found.name) showToast(`✅ Medicament identificat: ${found.name}`, 'success');
-    else showToast('Codi escanejat. Completa les dades.', 'warning');
-
-  } catch(e) {
-    document.getElementById('lookup-modal').classList.remove('active');
-    openManualForm(null);
-    document.getElementById('f-barcode').value = barcode;
-    showToast('Codi llegit. Completa les dades manualment.', 'warning');
-  }
-}
-
-function setLookupText(text) {
-  const el = document.querySelector('.lookup-text');
-  if (el) el.textContent = text;
-}
-
-function setFormPhoto(url) {
-  document.getElementById('f-image-data').value = url;
-  const preview = document.getElementById('photo-preview');
-  const placeholder = document.getElementById('photo-placeholder');
-  preview.src = url;
-  preview.style.display = 'block';
-  placeholder.style.display = 'none';
-  // Si la URL és externa, la convertim a base64 per guardar-la localment
-  urlToBase64(url).then(b64 => {
-    if (b64) {
-      document.getElementById('f-image-data').value = b64;
-      preview.src = b64;
-    }
-  }).catch(() => {});
-}
-
-async function urlToBase64(url) {
-  try {
-    // Usem un proxy CORS per evitar bloquejos
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-    const resp = await fetch(proxyUrl);
-    if (!resp.ok) throw new Error();
-    const blob = await resp.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
+      if (!found.image && found.name) { setLookupText('Cercant foto...', ''); return fetchPhoto(found.name, barcode); }
+      return null;
+    })
+    .then(function(photo) {
+      if (photo && !found.image) found.image = photo;
+      document.getElementById('lookup-modal').classList.remove('active');
+      openForm(null);
+      fillForm(found);
+      showToast(found.name ? found.name : 'Completa les dades', found.name ? 'success' : 'warning');
+    })
+    .catch(function() {
+      document.getElementById('lookup-modal').classList.remove('active');
+      openForm(null);
+      document.getElementById('f-barcode').value = barcode;
+      showToast('Codi llegit. Completa les dades.', 'warning');
     });
-  } catch(e) {
-    return null;
+}
+
+function fillForm(found) {
+  document.getElementById('f-name').value = found.name || '';
+  document.getElementById('f-principle').value = found.principle || '';
+  document.getElementById('f-manufacturer').value = found.manufacturer || '';
+  document.getElementById('f-content').value = found.content || '';
+  document.getElementById('f-indications').value = found.indications || '';
+  document.getElementById('f-usage').value = found.usage || '';
+  document.getElementById('f-barcode').value = found.barcode || '';
+  if (found.expiry) document.getElementById('f-expiry').value = found.expiry;
+  if (found.lot) document.getElementById('f-notes').value = 'Lot: ' + found.lot;
+  if (found.content) showStockField(found.content);
+  if (found.image) {
+    document.getElementById('f-img').value = found.image;
+    document.getElementById('photo-preview').src = found.image;
+    document.getElementById('photo-preview').style.display = 'block';
+    document.getElementById('photo-ph').style.display = 'none';
+    fetch('https://corsproxy.io/?' + encodeURIComponent(found.image))
+      .then(function(r) { return r.blob(); })
+      .then(function(blob) {
+        var fr = new FileReader();
+        fr.onload = function(e) { document.getElementById('f-img').value = e.target.result; document.getElementById('photo-preview').src = e.target.result; };
+        fr.readAsDataURL(blob);
+      }).catch(function() {});
   }
 }
 
-async function fetchMedicinePhoto(name, barcode) {
-  // Usem Claude amb web_search per trobar la foto oficial de la caixa
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 500,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-        messages: [{
-          role: "user",
-          content: `Search for an official product image URL of the medicine "${name}" (barcode: ${barcode}). Look for the medicine box/packaging photo from official sources like the Spanish CIMA database (cima.aemps.es), the manufacturer's website, or pharmaceutical databases. Return ONLY a JSON: {"imageUrl": "https://..."} with the direct image URL, or {"imageUrl": null} if not found.`
-        }]
-      })
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const text = data.content?.filter(c => c.type === 'text').map(c => c.text).join('') || '';
-    const clean = text.replace(/```json|```/g, '').trim();
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-    const parsed = JSON.parse(match[0]);
-    return parsed.imageUrl || null;
-  } catch(e) {
-    return null;
-  }
+function askClaude(barcode, knownName) {
+  return fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content: 'Code "' + barcode + '" is a Spanish medicine.' + (knownName ? ' Name may be: "' + knownName + '".' : '') + ' Search cima.aemps.es for: official name, active ingredient, manufacturer, content (e.g. "20 comprimidos"), indications in Catalan (2-3 sentences), how to use in Catalan (2-3 sentences), direct image URL. Respond ONLY JSON: {"name":"","principle":"","manufacturer":"","content":"","indications":"","usage":"","imageUrl":null}' }]
+    })
+  }).then(function(r) { return r.json(); })
+    .then(function(data) {
+      var text = (data.content || []).filter(function(c) { return c.type === 'text'; }).map(function(c) { return c.text; }).join('');
+      var match = text.replace(/```json|```/g, '').match(/\{[\s\S]*\}/);
+      return match ? JSON.parse(match[0]) : null;
+    }).catch(function() { return null; });
 }
 
-async function askClaudeAboutBarcode(barcode, knownName = '') {
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 800,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-        messages: [{
-          role: "user",
-          content: `The code "${barcode}" belongs to a Spanish medicine. ${knownName ? `Possible name: "${knownName}".` : ''}
-Search the CIMA database (cima.aemps.es) or Spanish pharmacy sites to find ALL of this:
-1. Official medicine name
-2. Active ingredient (principio activo)
-3. Manufacturer / laboratory name (laboratorio titular)
-4. Content quantity (e.g. "20 comprimidos", "500 ml", "30 capsulas", "1 vial 5ml")
-5. Indications: what the medicine is used for (in Catalan, 2-3 sentences max)
-6. How to use it: dosage and administration instructions (in Catalan, 2-3 sentences max)
-7. A direct image URL of the medicine box
-
-Respond ONLY with this exact JSON (no extra text):
-{"name":"...","principle":"...","manufacturer":"...","content":"...","indications":"...","usage":"...","imageUrl":"..." or null}`
-        }]
-      })
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const text = data.content?.filter(c => c.type === 'text').map(c => c.text).join('') || '';
-    const clean = text.replace(/```json[\s\S]*?```|```/g, '').trim();
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-    return JSON.parse(match[0]);
-  } catch(e) {
-    return null;
-  }
+function fetchPhoto(name, barcode) {
+  return fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514', max_tokens: 300,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content: 'Find direct image URL for medicine box "' + name + '" barcode ' + barcode + '. Respond ONLY JSON: {"imageUrl":"..."}' }]
+    })
+  }).then(function(r) { return r.json(); })
+    .then(function(data) {
+      var text = (data.content || []).filter(function(c) { return c.type === 'text'; }).map(function(c) { return c.text; }).join('');
+      var match = text.match(/\{[\s\S]*\}/);
+      return match ? (JSON.parse(match[0]).imageUrl || null) : null;
+    }).catch(function() { return null; });
 }
 
-// ─── FORM ───
-function openManualForm(id) {
-  editId = id;
-  document.getElementById('f-edit-id').value = id || '';
-  document.getElementById('f-image-data').value = '';
-
-  if (id) {
-    const m = medicines.find(x => x.id === id);
-    if (!m) return;
-    document.getElementById('form-title').textContent = '✏️ Editar medicament';
-    document.getElementById('save-btn-text').textContent = 'Guardar canvis';
-    document.getElementById('f-name').value = m.name || '';
-    document.getElementById('f-principle').value = m.principle || '';
-    document.getElementById('f-manufacturer').value = m.manufacturer || '';
-    document.getElementById('f-content').value = m.content || '';
-    document.getElementById('f-indications').value = m.indications || '';
-    document.getElementById('f-usage').value = m.usage || '';
-    document.getElementById('f-stock-pct').value = m.stockPct ?? 100;
-    document.getElementById('f-stock-units').value = m.stockUnits || '';
-    document.getElementById('f-barcode').value = m.barcode || '';
-    showStockField(m.content || '');
-    updateStockDisplay();
-    document.getElementById('f-expiry').value = m.expiry || '';
-    document.getElementById('f-quantity').value = m.quantity || '';
-    document.getElementById('f-notes').value = m.notes || '';
-    if (m.image) {
-      document.getElementById('f-image-data').value = m.image;
-      document.getElementById('photo-preview').src = m.image;
-      document.getElementById('photo-preview').style.display = 'block';
-      document.getElementById('photo-placeholder').style.display = 'none';
-    } else {
-      resetPhotoArea();
-    }
+function openForm(id) {
+  document.getElementById('f-id').value = id || '';
+  document.getElementById('form-title').textContent = id ? 'Editar medicament' : 'Nou medicament';
+  document.getElementById('save-btn-text').textContent = id ? 'Guardar canvis' : 'Guardar medicament';
+  var m = id ? medicines.find(function(x) { return x.id === id; }) : null;
+  document.getElementById('f-name').value = m ? m.name || '' : '';
+  document.getElementById('f-principle').value = m ? m.principle || '' : '';
+  document.getElementById('f-manufacturer').value = m ? m.manufacturer || '' : '';
+  document.getElementById('f-content').value = m ? m.content || '' : '';
+  document.getElementById('f-indications').value = m ? m.indications || '' : '';
+  document.getElementById('f-usage').value = m ? m.usage || '' : '';
+  document.getElementById('f-expiry').value = m ? m.expiry || '' : '';
+  document.getElementById('f-barcode').value = m ? m.barcode || '' : '';
+  document.getElementById('f-notes').value = m ? m.notes || '' : '';
+  document.getElementById('f-stock-pct').value = m && m.stockPct !== undefined ? m.stockPct : 100;
+  document.getElementById('f-stock-units').value = m ? m.stockUnits || '' : '';
+  document.getElementById('f-stock-units').dataset.total = '0';
+  document.getElementById('f-img').value = m && m.image ? m.image : '';
+  document.getElementById('stock-group').style.display = m && m.content ? 'block' : 'none';
+  if (m && m.content) showStockField(m.content);
+  updateStockDisplay();
+  if (m && m.image) {
+    document.getElementById('photo-preview').src = m.image;
+    document.getElementById('photo-preview').style.display = 'block';
+    document.getElementById('photo-ph').style.display = 'none';
   } else {
-    document.getElementById('form-title').textContent = '➕ Nou medicament';
-    document.getElementById('save-btn-text').textContent = 'Guardar medicament';
-    document.getElementById('f-name').value = '';
-    document.getElementById('f-principle').value = '';
-    document.getElementById('f-manufacturer').value = '';
-    document.getElementById('f-content').value = '';
-    document.getElementById('f-indications').value = '';
-    document.getElementById('f-usage').value = '';
-    document.getElementById('f-stock-pct').value = 100;
-    document.getElementById('f-stock-units').value = '';
-    document.getElementById('f-barcode').value = '';
-    document.getElementById('stock-group').style.display = 'none';
-    document.getElementById('f-expiry').value = '';
-    document.getElementById('f-quantity').value = '';
-    document.getElementById('f-notes').value = '';
-    resetPhotoArea();
+    document.getElementById('photo-preview').style.display = 'none';
+    document.getElementById('photo-preview').src = '';
+    document.getElementById('photo-ph').style.display = 'block';
   }
-
   document.getElementById('form-modal').classList.add('active');
 }
 
-function openEditForm(id) {
-  openManualForm(id);
-}
+function closeForm() { document.getElementById('form-modal').classList.remove('active'); }
 
-function closeForm() {
-  document.getElementById('form-modal').classList.remove('active');
-  editId = null;
-}
-
-function resetPhotoArea() {
-  document.getElementById('photo-preview').style.display = 'none';
-  document.getElementById('photo-preview').src = '';
-  document.getElementById('photo-placeholder').style.display = 'block';
-  document.getElementById('f-image-data').value = '';
-}
-
-function handlePhotoUpload(event) {
-  const file = event.target.files[0];
+function handlePhoto(event) {
+  var file = event.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const data = e.target.result;
-    document.getElementById('f-image-data').value = data;
-    document.getElementById('photo-preview').src = data;
+  var fr = new FileReader();
+  fr.onload = function(e) {
+    document.getElementById('f-img').value = e.target.result;
+    document.getElementById('photo-preview').src = e.target.result;
     document.getElementById('photo-preview').style.display = 'block';
-    document.getElementById('photo-placeholder').style.display = 'none';
+    document.getElementById('photo-ph').style.display = 'none';
   };
-  reader.readAsDataURL(file);
+  fr.readAsDataURL(file);
 }
 
 function saveMedicine() {
-  const name = document.getElementById('f-name').value.trim();
-  if (!name) { showToast('El nom és obligatori.', 'error'); return; }
-
-  const id = editId || Date.now().toString();
-  const medicine = {
-    id,
-    name,
+  var name = document.getElementById('f-name').value.trim();
+  if (!name) { showToast('El nom es obligatori', 'error'); return; }
+  var id = document.getElementById('f-id').value || Date.now().toString();
+  var existing = medicines.find(function(m) { return m.id === id; });
+  var med = {
+    id: id, name: name,
     principle: document.getElementById('f-principle').value.trim(),
     manufacturer: document.getElementById('f-manufacturer').value.trim(),
     content: document.getElementById('f-content').value.trim(),
     indications: document.getElementById('f-indications').value.trim(),
     usage: document.getElementById('f-usage').value.trim(),
+    expiry: document.getElementById('f-expiry').value,
+    barcode: document.getElementById('f-barcode').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
     stockPct: parseInt(document.getElementById('f-stock-pct').value) || 100,
     stockUnits: document.getElementById('f-stock-units').value.trim(),
-    barcode: document.getElementById('f-barcode').value.trim(),
-    expiry: document.getElementById('f-expiry').value,
-    quantity: document.getElementById('f-quantity').value.trim(),
-    notes: document.getElementById('f-notes').value.trim(),
-    image: document.getElementById('f-image-data').value || null,
-    addedAt: editId ? (medicines.find(m => m.id === editId)?.addedAt || new Date().toISOString()) : new Date().toISOString(),
+    image: document.getElementById('f-img').value || null,
+    addedAt: existing ? existing.addedAt : new Date().toISOString()
   };
-
-  if (editId) {
-    const idx = medicines.findIndex(m => m.id === editId);
-    if (idx !== -1) medicines[idx] = medicine;
-  } else {
-    medicines.unshift(medicine);
-  }
-
-  save();
-  closeForm();
-  renderList();
-  renderAlerts();
-  showToast(editId ? '✅ Medicament actualitzat' : '✅ Medicament afegit', 'success');
+  if (existing) { medicines[medicines.findIndex(function(m) { return m.id === id; })] = med; }
+  else { medicines.unshift(med); }
+  save(); closeForm(); renderList(); renderAlerts();
+  showToast(existing ? 'Actualitzat' : 'Afegit', 'success');
 }
 
-// ─── DELETE ───
 function deleteMedicine(id) {
-  if (!confirm('Segur que vols eliminar aquest medicament?')) return;
-  medicines = medicines.filter(m => m.id !== id);
-  save();
-  renderList();
-  renderAlerts();
-  showToast('Medicament eliminat', 'warning');
+  if (!confirm('Eliminar aquest medicament?')) return;
+  medicines = medicines.filter(function(m) { return m.id !== id; });
+  save(); renderList(); renderAlerts();
+  showToast('Eliminat', 'warning');
 }
 
-// ─── DETAIL ───
 function showDetail(id) {
-  const m = medicines.find(x => x.id === id);
+  var m = medicines.find(function(x) { return x.id === id; });
   if (!m) return;
-
-  const status = getExpiryStatus(m.expiry);
-  const days = getDaysLeft(m.expiry);
-  let expiryClass = 'expiry-unknown', expiryText = 'Sense data de caducitat';
-  if (status === 'expired') { expiryClass = 'expiry-expired'; expiryText = `Caducat el ${getExpiryLabel(m.expiry)}`; }
-  else if (status === 'expiring') { expiryClass = 'expiry-soon'; expiryText = `Caduca en ${days} dies (${getExpiryLabel(m.expiry)})`; }
-  else if (status === 'ok') { expiryClass = 'expiry-ok'; expiryText = `Vàlid fins ${getExpiryLabel(m.expiry)} (${days} dies)`; }
-
-  const imageHtml = m.image
-    ? `<img class="detail-image" src="${m.image}" alt="${m.name}">`
-    : `<div class="detail-image-placeholder">💊</div>`;
-
-  const addedDate = new Date(m.addedAt).toLocaleDateString('ca-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-
-  document.getElementById('detail-sheet-content').innerHTML = `
-    <div class="sheet-handle" style="margin-top:12px;margin-bottom:0;"></div>
-    ${imageHtml}
-    <div class="detail-body">
-      <div class="detail-name">${m.name}</div>
-      ${m.principle ? `<div class="detail-principle">${m.principle}</div>` : ''}
-
-      <div class="card-expiry ${expiryClass}" style="margin-bottom:16px; font-size:0.8rem; padding:6px 12px;">
-        ${expiryText}
-      </div>
-
-      <div class="detail-grid">
-        ${m.manufacturer ? `<div class="detail-item" style="grid-column:1/-1">
-          <div class="detail-item-label">Laboratori</div>
-          <div class="detail-item-value">${m.manufacturer}</div>
-        </div>` : ''}
-        ${m.content ? `<div class="detail-item">
-          <div class="detail-item-label">Contingut</div>
-          <div class="detail-item-value">${m.content}</div>
-        </div>` : ''}
-        ${m.barcode ? `<div class="detail-item">
-          <div class="detail-item-label">Codi de barres</div>
-          <div class="detail-item-value" style="font-family:monospace;font-size:0.8rem;">${m.barcode}</div>
-        </div>` : ''}
-        ${m.quantity ? `<div class="detail-item">
-          <div class="detail-item-label">Quantitat</div>
-          <div class="detail-item-value">${m.quantity}</div>
-        </div>` : ''}
-        <div class="detail-item">
-          <div class="detail-item-label">Afegit el</div>
-          <div class="detail-item-value" style="font-size:0.8rem;">${addedDate}</div>
-        </div>
-      </div>
-
-      ${(m.stockPct !== undefined || m.stockUnits) ? `<div class="detail-notes" style="margin-bottom:12px;">
-        <div class="detail-notes-label" style="margin-bottom:8px;">📊 Stock disponible</div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="flex:1;height:10px;background:var(--surface2);border-radius:10px;overflow:hidden;">
-            <div style="height:100%;width:${m.stockPct ?? 100}%;background:${stockColor(m.stockPct ?? 100)};border-radius:10px;transition:width 0.4s;"></div>
-          </div>
-          <span style="font-family:Syne,sans-serif;font-weight:700;font-size:0.95rem;color:${stockColor(m.stockPct ?? 100)};min-width:40px;text-align:right;">${stockLabel(m)}</span>
-        </div>
-      </div>` : ''}
-      ${m.indications ? `<div class="detail-notes" style="border-left:3px solid var(--accent);padding-left:14px;">
-        <div class="detail-notes-label">💊 Per a què serveix</div>
-        <div class="detail-notes-text">${m.indications}</div>
-      </div>` : ''}
-      ${m.usage ? `<div class="detail-notes" style="border-left:3px solid var(--accent3);padding-left:14px;">
-        <div class="detail-notes-label">📋 Com utilitzar-lo</div>
-        <div class="detail-notes-text">${m.usage}</div>
-      </div>` : ''}
-      ${m.notes ? `<div class="detail-notes">
-        <div class="detail-notes-label">Notes</div>
-        <div class="detail-notes-text">${m.notes}</div>
-      </div>` : ''}
-
-      <div style="display:flex;gap:10px;">
-        <button class="save-btn" style="flex:1;" onclick="closeDetail(); openEditForm('${m.id}')">✏️ Editar</button>
-        <button class="manual-btn" style="flex:0.5;" onclick="closeDetail()">Tancar</button>
-      </div>
-    </div>`;
-
+  var st = expiryStatus(m.expiry), days = daysLeft(m.expiry);
+  var ebc = 'eb-unk', ebt = 'Sense data de caducitat';
+  if (st === 'expired') { ebc = 'eb-exp'; ebt = 'Caducat el ' + expiryLabel(m.expiry); }
+  else if (st === 'expiring') { ebc = 'eb-soon'; ebt = 'Caduca en ' + days + ' dies (' + expiryLabel(m.expiry) + ')'; }
+  else if (st === 'ok') { ebc = 'eb-ok'; ebt = 'Valid fins ' + expiryLabel(m.expiry) + ' (' + days + ' dies)'; }
+  var pct = m.stockPct !== undefined ? m.stockPct : 100;
+  var addedDate = new Date(m.addedAt).toLocaleDateString('ca-ES', { day:'2-digit', month:'short', year:'numeric' });
+  var h = '<div class="sheet-handle" style="margin-top:12px;margin-bottom:0"></div>';
+  h += m.image ? '<img class="detail-img" src="' + m.image + '" alt="">' : '<div class="detail-img-ph">&#128138;</div>';
+  h += '<div class="detail-body">';
+  h += '<div class="detail-name">' + m.name + '</div>';
+  if (m.principle) h += '<div class="detail-sub">' + m.principle + '</div>';
+  h += '<div class="eb ' + ebc + '" style="margin-bottom:14px;font-size:.8rem;padding:6px 12px">' + ebt + '</div>';
+  if (pct < 100) {
+    h += '<div class="ds" style="margin-bottom:12px"><div class="ds-label">Stock disponible</div><div style="display:flex;align-items:center;gap:10px"><div class="stock-bar"><div class="stock-bar-fill" style="width:' + pct + '%;background:' + stockColor(pct) + '"></div></div><span style="font-family:Syne,sans-serif;font-weight:700;color:' + stockColor(pct) + ';min-width:40px;text-align:right">' + stockLabel(m) + '</span></div></div>';
+  }
+  h += '<div class="detail-grid">';
+  if (m.manufacturer) h += '<div class="di full"><div class="di-label">Laboratori</div><div class="di-value">' + m.manufacturer + '</div></div>';
+  if (m.content) h += '<div class="di"><div class="di-label">Contingut</div><div class="di-value">' + m.content + '</div></div>';
+  if (m.barcode) h += '<div class="di"><div class="di-label">Codi</div><div class="di-value" style="font-family:monospace;font-size:.78rem">' + m.barcode + '</div></div>';
+  h += '<div class="di"><div class="di-label">Afegit el</div><div class="di-value" style="font-size:.8rem">' + addedDate + '</div></div>';
+  h += '</div>';
+  if (m.indications) h += '<div class="ds green"><div class="ds-label">Per a que serveix</div><div class="ds-text">' + m.indications + '</div></div>';
+  if (m.usage) h += '<div class="ds yellow"><div class="ds-label">Com utilitzar-lo</div><div class="ds-text">' + m.usage + '</div></div>';
+  if (m.notes) h += '<div class="ds"><div class="ds-label">Notes</div><div class="ds-text">' + m.notes + '</div></div>';
+  h += '<div style="display:flex;gap:10px"><button class="save-btn" style="flex:1" onclick="closeDetail();openForm(\'' + m.id + '\')">Editar</button><button class="manual-btn" style="flex:0.5" onclick="closeDetail()">Tancar</button></div>';
+  h += '</div>';
+  document.getElementById('detail-content').innerHTML = h;
   document.getElementById('detail-modal').classList.add('active');
 }
 
-function closeDetail() {
-  document.getElementById('detail-modal').classList.remove('active');
-}
+function closeDetail() { document.getElementById('detail-modal').classList.remove('active'); }
 
-// Close on backdrop click
-document.getElementById('detail-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeDetail();
-});
-document.getElementById('form-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeForm();
-});
-document.getElementById('scanner-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeScanner();
-});
-
-// ─── STATS ───
 function showStats() {
-  const total = medicines.length;
-  const expired = medicines.filter(m => getExpiryStatus(m.expiry) === 'expired').length;
-  const expiring = medicines.filter(m => getExpiryStatus(m.expiry) === 'expiring').length;
-  const ok = medicines.filter(m => getExpiryStatus(m.expiry) === 'ok').length;
-  const noDate = medicines.filter(m => !m.expiry).length;
-
-  alert(`📊 ESTADÍSTIQUES\n\nTotal: ${total} medicaments\n✅ Vàlids: ${ok}\n⚠️ Caduquen aviat: ${expiring}\n❌ Caducats: ${expired}\n📅 Sense data: ${noDate}`);
+  var t = medicines.length;
+  var exp = medicines.filter(function(m) { return expiryStatus(m.expiry) === 'expired'; }).length;
+  var expi = medicines.filter(function(m) { return expiryStatus(m.expiry) === 'expiring'; }).length;
+  var ok = medicines.filter(function(m) { return expiryStatus(m.expiry) === 'ok'; }).length;
+  var low = medicines.filter(function(m) { var p = m.stockPct !== undefined ? m.stockPct : 100; return p <= 15 && p > 0; }).length;
+  alert('ESTADISTIQUES\n\nTotal: ' + t + '\nValids: ' + ok + '\nCaduquen aviat: ' + expi + '\nCaducats: ' + exp + '\nPoc stock: ' + low);
 }
 
-// ─── EXPORT ───
 function exportData() {
-  const data = JSON.stringify(medicines, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `farmacasa_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  showToast('Dades exportades', 'success');
+  var blob = new Blob([JSON.stringify(medicines, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'farmacasa_' + new Date().toISOString().slice(0,10) + '.json'; a.click();
+  showToast('Exportat', 'success');
 }
 
-// ─── TOAST ───
-function showToast(msg, type = 'success') {
-  const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.className = `toast ${type} show`;
-  setTimeout(() => toast.classList.remove('show'), 3000);
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type || 'success') + ' show';
+  setTimeout(function() { t.classList.remove('show'); }, 3000);
 }
 </script>
 </body>
