@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>FarmaCasa</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+
 <style>
 :root{--bg:#07111f;--s1:#0d1e33;--s2:#132843;--a:#00d4aa;--a2:#ff6b6b;--a3:#ffd166;--t:#e8f4f8;--tm:#7a9ab5;--br:rgba(0,212,170,0.15);--r:16px}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -193,8 +193,19 @@ input[type=range]{flex:1;accent-color:var(--a);height:6px;cursor:pointer}
       <div class="scan-overlay"><div class="scan-frame"></div></div>
     </div>
     <div class="scanner-footer">
-      <p class="scan-hint">Centra el codi <strong style="color:var(--a)">DataMatrix</strong> al requadre</p>
+      <p class="scan-hint" id="scan-status">Detectant codi...</p>
       <button class="flash-btn" id="flash-btn" onclick="toggleFlash()">&#128294; Flash</button>
+    </div>
+    <div style="padding:12px 4px 0">
+      <div style="font-size:.75rem;color:var(--tm);margin-bottom:6px;">Si no es detecta automàticament, enganxa el codi aquí:</div>
+      <div style="display:flex;gap:8px">
+        <input id="manual-code-input" type="text" placeholder="Codi DataMatrix (ex: 010847...)" 
+          style="flex:1;background:var(--s2);border:1px solid var(--br);border-radius:10px;color:var(--t);font-family:monospace;font-size:.85rem;padding:10px 12px;outline:none">
+        <button onclick="submitManualCode()" 
+          style="background:var(--a);border:none;border-radius:10px;color:var(--bg);font-family:Syne,sans-serif;font-weight:700;font-size:.85rem;padding:10px 14px;cursor:pointer">
+          Cercar
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -464,21 +475,38 @@ function setFilter(f, el) {
 
 function openScanner() {
   document.getElementById('scanner-modal').classList.add('active');
+  document.getElementById('manual-code-input').value = '';
   scannerActive = true;
   var video = document.getElementById('scanner-video');
   if (video.srcObject) { video.srcObject.getTracks().forEach(function(t) { t.stop(); }); video.srcObject = null; }
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
-    .then(function(stream) { video.srcObject = stream; video.muted = true; return video.play(); })
-    .then(function() { startScanning(video); })
-    .catch(function(err) { closeScanner(); showToast('Error de camara: ' + err.message, 'error'); });
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+    audio: false
+  }).then(function(stream) {
+    video.srcObject = stream;
+    video.muted = true;
+    return video.play();
+  }).then(function() {
+    // Try native BarcodeDetector first (Android Chrome 83+, best DataMatrix support)
+    if ('BarcodeDetector' in window) {
+      document.getElementById('scan-status').textContent = 'Detector natiu actiu...';
+      startNativeDetector(video);
+    } else {
+      document.getElementById('scan-status').textContent = 'Detectant codi...';
+      startCanvasLoop(video);
+    }
+  }).catch(function(err) {
+    closeScanner();
+    showToast('Error camara: ' + err.message, 'error');
+  });
 }
 
 function closeScanner() {
   scannerActive = false;
   if (window._scanFrame) { cancelAnimationFrame(window._scanFrame); window._scanFrame = null; }
-  if (codeReader) { try { codeReader.reset(); } catch(e) {} codeReader = null; }
+  if (window._nativeDetector) { window._nativeDetector = null; }
   var video = document.getElementById('scanner-video');
-  if (video.srcObject) {
+  if (video && video.srcObject) {
     var track = video.srcObject.getVideoTracks()[0];
     if (track && flashOn) { try { track.applyConstraints({ advanced: [{ torch: false }] }); } catch(e) {} }
     video.srcObject.getTracks().forEach(function(t) { t.stop(); });
@@ -488,62 +516,84 @@ function closeScanner() {
   document.getElementById('scanner-modal').classList.remove('active');
 }
 
-function startScanning(video) {
-  try {
-    var hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.QR_CODE,
-      ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.ITF
-    ]);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    codeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
-    codeReader.decodeFromStream(video.srcObject, video, function(result) {
-      if (result && scannerActive) {
-        var raw = result.getText();
-        var parsed = parseDataMatrix(raw);
-        scannerActive = false;
-        if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
-        closeScanner();
-        lookupMedicine(parsed.cn || raw, parsed);
-      }
+// Mètode 1: BarcodeDetector natiu d'Android — suporta DataMatrix perfectament
+function startNativeDetector(video) {
+  BarcodeDetector.getSupportedFormats().then(function(formats) {
+    var supported = formats.filter(function(f) {
+      return ['data_matrix','qr_code','ean_13','ean_8','code_128','itf'].indexOf(f) >= 0;
     });
-  } catch(e) { startCanvasScanning(video); }
-}
-
-function startCanvasScanning(video) {
-  var canvas = document.createElement('canvas');
-  var ctx = canvas.getContext('2d', { willReadFrequently: true });
-  var hints = new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.QR_CODE,
-    ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.CODE_128
-  ]);
-  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  var reader = new ZXing.BrowserMultiFormatReader(hints);
-  function tick() {
-    if (!scannerActive) return;
-    if (video.readyState === 4 && video.videoWidth > 0) {
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-      try {
-        var lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-        var bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
-        var result = reader.decode(bmp);
-        if (result && scannerActive) {
-          var raw = result.getText();
-          var parsed = parseDataMatrix(raw);
+    var detector = new BarcodeDetector({ formats: supported.length ? supported : ['data_matrix','qr_code','ean_13'] });
+    window._nativeDetector = detector;
+    
+    function detect() {
+      if (!scannerActive) return;
+      if (video.readyState < 2) { window._scanFrame = requestAnimationFrame(detect); return; }
+      detector.detect(video).then(function(codes) {
+        if (codes && codes.length > 0 && scannerActive) {
+          var raw = codes[0].rawValue;
           scannerActive = false;
           if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
           closeScanner();
+          var parsed = parseDataMatrix(raw);
           lookupMedicine(parsed.cn || raw, parsed);
-          return;
+        } else {
+          window._scanFrame = requestAnimationFrame(detect);
         }
-      } catch(e) {}
+      }).catch(function() {
+        window._scanFrame = requestAnimationFrame(detect);
+      });
+    }
+    window._scanFrame = requestAnimationFrame(detect);
+  }).catch(function() {
+    startCanvasLoop(video);
+  });
+}
+
+// Mètode 2: Canvas loop manual — fallback per dispositius sense BarcodeDetector
+function startCanvasLoop(video) {
+  var canvas = document.createElement('canvas');
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  var frameCount = 0;
+
+  function tick() {
+    if (!scannerActive) return;
+    if (video.readyState < 2 || !video.videoWidth) {
+      window._scanFrame = requestAnimationFrame(tick);
+      return;
+    }
+    frameCount++;
+    // Only process every 3rd frame to save battery
+    if (frameCount % 3 !== 0) { window._scanFrame = requestAnimationFrame(tick); return; }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    // Try ImageCapture + BarcodeDetector on still frame if available
+    if ('BarcodeDetector' in window) {
+      var detector = new BarcodeDetector({ formats: ['data_matrix','qr_code','ean_13','ean_8','code_128'] });
+      detector.detect(canvas).then(function(codes) {
+        if (codes && codes.length > 0 && scannerActive) {
+          var raw = codes[0].rawValue;
+          scannerActive = false;
+          if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+          closeScanner();
+          var parsed = parseDataMatrix(raw);
+          lookupMedicine(parsed.cn || raw, parsed);
+        }
+      }).catch(function() {});
     }
     window._scanFrame = requestAnimationFrame(tick);
   }
   window._scanFrame = requestAnimationFrame(tick);
+}
+
+function submitManualCode() {
+  var val = document.getElementById('manual-code-input').value.trim();
+  if (!val) { showToast('Introdueix el codi', 'error'); return; }
+  closeScanner();
+  var parsed = parseDataMatrix(val);
+  lookupMedicine(parsed.cn || val, parsed);
 }
 
 function parseDataMatrix(raw) {
