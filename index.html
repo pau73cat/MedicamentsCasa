@@ -638,11 +638,12 @@ function setLookupText(t, s) {
 }
 
 
+
 function lookupMedicine(barcode, dmParsed) {
   document.getElementById('lookup-modal').classList.add('active');
-  setLookupText('Cercant medicament...', '');
+  setLookupText('Buscant medicament...', '');
 
-  var cn = (dmParsed && dmParsed.cn) ? dmParsed.cn : barcode;
+  var cn     = (dmParsed && dmParsed.cn)     ? dmParsed.cn     : barcode;
   var expiry = (dmParsed && dmParsed.expiry) ? dmParsed.expiry : null;
   var lot    = (dmParsed && dmParsed.lot)    ? dmParsed.lot    : null;
 
@@ -652,94 +653,88 @@ function lookupMedicine(barcode, dmParsed) {
     expiry: expiry, lot: lot
   };
 
-  // Usem allorigins.win com a proxy CORS per evitar el bloqueig de CIMA
-  var proxyBase = 'https://api.allorigins.win/get?url=';
-  var cimaPresUrl = 'https://cima.aemps.es/cima/rest/presentacion?cn=' + cn;
+  // Usem el proxy de CIMA que funciona amb CORS
+  // cors-anywhere públic o allorigins amb timeout
+  var PROXY = 'https://corsproxy.io/?';
+  var CIMA  = 'https://cima.aemps.es/cima/rest/';
 
-  setLookupText('Consultant CIMA...', cn);
+  function cimaFetch(path) {
+    return fetch(PROXY + encodeURIComponent(CIMA + path))
+      .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  }
 
-  fetch(proxyBase + encodeURIComponent(cimaPresUrl))
-    .then(function(r) { return r.json(); })
-    .then(function(proxy) {
-      var pres = JSON.parse(proxy.contents);
-      if (!pres || !pres.nregistro) throw new Error('no nregistro');
+  setLookupText('Consultant base de dades...', '');
+
+  cimaFetch('presentacion?cn=' + cn)
+    .then(function(pres) {
+      if (!pres || !pres.nregistro) throw new Error('no CN a CIMA');
       found.nregistro = pres.nregistro;
-      // Extreu contingut del nom de la presentació
       if (pres.nombre) found.content = extractContent(pres.nombre);
-      setLookupText('Obtenint fitxa...', '');
-      var cimaMedUrl = 'https://cima.aemps.es/cima/rest/medicamento?nregistro=' + pres.nregistro;
-      return fetch(proxyBase + encodeURIComponent(cimaMedUrl)).then(function(r) { return r.json(); });
+      setLookupText('Carregant fitxa completa...', '');
+      return cimaFetch('medicamento?nregistro=' + pres.nregistro);
     })
-    .then(function(proxy) {
-      var med = JSON.parse(proxy.contents);
-      if (med) {
-        found.name         = med.nombre     || '';
-        found.manufacturer = med.labtitular || '';
-        found.principle    = med.pactivos   || '';
-        // Foto oficial: primer busca tipus "materialas" (caixa exterior)
-        if (med.fotos && med.fotos.length > 0) {
-          var box = null;
-          for (var i = 0; i < med.fotos.length; i++) {
-            if (med.fotos[i].tipo === 'materialas') { box = med.fotos[i]; break; }
-          }
-          var foto = box || med.fotos[0];
-          if (foto && foto.url) found.image = foto.url;
-        }
-        // Indicacions i ús: del camp "formaFarmaceutica" + "viasAdministracion"
-        if (med.formaFarmaceutica && med.formaFarmaceutica.nombre) {
-          found.forma = med.formaFarmaceutica.nombre;
-        }
+    .then(function(med) {
+      found.name         = med.nombre     || '';
+      found.manufacturer = med.labtitular || '';
+      found.principle    = med.pactivos   || '';
+      if (med.fotos && med.fotos.length) {
+        var box = med.fotos.find(function(f) { return f.tipo === 'materialas'; }) || med.fotos[0];
+        if (box && box.url) found.image = box.url;
       }
-      // Ara busca indicacions a la fitxa tècnica de CIMA (secció 4.1 = indicacions)
-      if (found.nregistro) {
-        setLookupText('Carregant indicacions...', '');
-        var ftUrl = 'https://cima.aemps.es/cima/rest/docSegmentado/contenido/html?nregistro=' + found.nregistro + '&tipo=1&seccion=4.1';
-        return fetch(proxyBase + encodeURIComponent(ftUrl)).then(function(r) { return r.json(); }).catch(function() { return null; });
-      }
-      return null;
+      // Indicacions de la fitxa tècnica (secció 4.1)
+      setLookupText('Carregant indicacions...', '');
+      return cimaFetch('docSegmentado/contenido/html?nregistro=' + found.nregistro + '&tipo=1&seccion=4.1')
+        .catch(function() { return null; });
     })
-    .then(function(proxy) {
-      if (proxy && proxy.contents) {
-        // Extreu text pla de l'HTML de la fitxa tècnica
-        var htmlText = proxy.contents;
-        var text = htmlText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        if (text.length > 20) {
-          found.indications = text.slice(0, 400).trim();
-        }
+    .then(function(sec41) {
+      if (sec41 && sec41.contenido) {
+        found.indications = sec41.contenido
+          .replace(/<[^>]+>/g, ' ').replace(/s+/g, ' ').trim().slice(0, 500);
       }
-      // Secció 4.2 = posologia (com usar-lo)
-      if (found.nregistro) {
-        var posUrl = 'https://cima.aemps.es/cima/rest/docSegmentado/contenido/html?nregistro=' + found.nregistro + '&tipo=1&seccion=4.2';
-        return fetch(proxyBase + encodeURIComponent(posUrl)).then(function(r) { return r.json(); }).catch(function() { return null; });
-      }
-      return null;
+      return cimaFetch('docSegmentado/contenido/html?nregistro=' + found.nregistro + '&tipo=1&seccion=4.2')
+        .catch(function() { return null; });
     })
-    .then(function(proxy) {
-      if (proxy && proxy.contents) {
-        var htmlText = proxy.contents;
-        var text = htmlText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        if (text.length > 20) {
-          found.usage = text.slice(0, 400).trim();
-        }
+    .then(function(sec42) {
+      if (sec42 && sec42.contenido) {
+        found.usage = sec42.contenido
+          .replace(/<[^>]+>/g, ' ').replace(/s+/g, ' ').trim().slice(0, 500);
       }
-      document.getElementById('lookup-modal').classList.remove('active');
-      openForm(null);
-      fillForm(found);
-      showToast(found.name ? found.name : 'Completa les dades', found.name ? 'success' : 'warning');
+      done(found);
     })
     .catch(function(err) {
-      console.error('CIMA error:', err);
-      // Fallback: obre el formulari amb el que tenim
-      document.getElementById('lookup-modal').classList.remove('active');
-      openForm(null);
-      document.getElementById('f-barcode').value = cn;
-      if (expiry) document.getElementById('f-expiry').value = expiry;
-      if (lot) document.getElementById('f-notes').value = 'Lot: ' + lot;
-      showToast('No s\'he trobat a CIMA. Completa manualment.', 'warning');
+      console.warn('CIMA fallida:', err.message, '— provant nomenclator.org...');
+      // Fallback: nomenclator.org té CORS obert i dades de CIMA
+      fetch(PROXY + encodeURIComponent('https://api.nomenclator.org/medicamentos/' + cn))
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(nom) {
+          if (nom && nom.nombre) {
+            found.name         = nom.nombre        || '';
+            found.manufacturer = nom.laboratorio   || '';
+            found.principle    = nom.principioActivo || '';
+            found.content      = extractContent(nom.nombre);
+          }
+          done(found);
+        })
+        .catch(function() { done(found); });
     });
+
+  function done(found) {
+    document.getElementById('lookup-modal').classList.remove('active');
+    openForm(null);
+    fillForm(found);
+    if (found.name) showToast(found.name, 'success');
+    else showToast('Completa les dades manualment.', 'warning');
+  }
 }
 
-
+function extractContent(nom) {
+  if (!nom) return '';
+  var u = nom.match(/d+s*(comprimidos?|comprimits?|capsulas?|caps|sobres?|viales?|ampollas?)/i);
+  if (u) return u[0].trim();
+  var ml = nom.match(/d+[.,]?d*s*ml/i);
+  if (ml) return ml[0].trim();
+  return '';
+}
 
 function fillForm(found) {
   document.getElementById('f-name').value         = found.name         || '';
@@ -758,8 +753,7 @@ function fillForm(found) {
     prev.src = found.image;
     prev.style.display = 'block';
     document.getElementById('photo-ph').style.display = 'none';
-    // Base64 per guardar offline
-    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(found.image))
+    fetch('https://corsproxy.io/?' + encodeURIComponent(found.image))
       .then(function(r) { return r.blob(); })
       .then(function(blob) {
         var fr = new FileReader();
