@@ -639,22 +639,42 @@ function setLookupText(t, s) {
 
 function lookupMedicine(barcode, dmParsed) {
   document.getElementById('lookup-modal').classList.add('active');
-  setLookupText('Cercant medicament...', barcode);
-  var found = { barcode: barcode, name: '', principle: '', manufacturer: '', content: '', indications: '', usage: '', image: null, expiry: null, lot: null };
-  if (dmParsed) { if (dmParsed.expiry) found.expiry = dmParsed.expiry; if (dmParsed.lot) found.lot = dmParsed.lot; }
+  setLookupText('Cercant a CIMA...', barcode);
+  var found = { barcode: barcode, name: '', principle: '', manufacturer: '',
+    content: '', indications: '', usage: '', image: null, expiry: null, lot: null, nregistro: null };
+  if (dmParsed) {
+    if (dmParsed.expiry) found.expiry = dmParsed.expiry;
+    if (dmParsed.lot) found.lot = dmParsed.lot;
+    if (dmParsed.cn) found.barcode = dmParsed.cn;
+  }
+  var cn = found.barcode;
 
-  fetch('https://world.openfoodfacts.org/api/v0/product/' + barcode + '.json')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.status === 1 && data.product) {
-        var p = data.product;
-        if (!found.name) found.name = p.product_name || p.generic_name || '';
-        if (!found.image) found.image = p.image_front_url || p.image_url || null;
+  fetch('https://cima.aemps.es/cima/rest/presentacion?cn=' + cn)
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(pres) {
+      if (pres && pres.nregistro) {
+        found.nregistro = pres.nregistro;
+        if (pres.nombre) found.content = extractContent(pres.nombre);
+        setLookupText('Obtenint fitxa completa...', '');
+        return fetch('https://cima.aemps.es/cima/rest/medicamento?nregistro=' + pres.nregistro)
+          .then(function(r) { return r.ok ? r.json() : null; });
       }
-    }).catch(function() {})
-    .then(function() {
-      setLookupText('Identificant amb IA...', '');
-      return askClaude(barcode, found.name);
+      return null;
+    })
+    .then(function(med) {
+      if (med) {
+        found.name = med.nombre || '';
+        found.manufacturer = med.labtitular || '';
+        if (med.pactivos) found.principle = med.pactivos;
+        if (med.fotos && med.fotos.length > 0) {
+          var fotoBox = null;
+          for (var fi = 0; fi < med.fotos.length; fi++) { if (med.fotos[fi].tipo === 'materialas') { fotoBox = med.fotos[fi]; break; } }
+          var foto = fotoBox || med.fotos[0];
+          if (foto && foto.url) found.image = foto.url;
+        }
+      }
+      setLookupText('Obtenint indicacions...', '');
+      return askClaude(found);
     })
     .then(function(ai) {
       if (ai) {
@@ -662,26 +682,63 @@ function lookupMedicine(barcode, dmParsed) {
         if (!found.principle && ai.principle) found.principle = ai.principle;
         if (!found.manufacturer && ai.manufacturer) found.manufacturer = ai.manufacturer;
         if (!found.content && ai.content) found.content = ai.content;
-        if (!found.indications && ai.indications) found.indications = ai.indications;
-        if (!found.usage && ai.usage) found.usage = ai.usage;
+        if (ai.indications) found.indications = ai.indications;
+        if (ai.usage) found.usage = ai.usage;
         if (!found.image && ai.imageUrl) found.image = ai.imageUrl;
       }
-      if (!found.image && found.name) { setLookupText('Cercant foto...', ''); return fetchPhoto(found.name, barcode); }
-      return null;
-    })
-    .then(function(photo) {
-      if (photo && !found.image) found.image = photo;
       document.getElementById('lookup-modal').classList.remove('active');
       openForm(null);
       fillForm(found);
       showToast(found.name ? found.name : 'Completa les dades', found.name ? 'success' : 'warning');
     })
-    .catch(function() {
+    .catch(function(err) {
+      console.error('lookup error:', err);
       document.getElementById('lookup-modal').classList.remove('active');
       openForm(null);
-      document.getElementById('f-barcode').value = barcode;
+      document.getElementById('f-barcode').value = cn;
       showToast('Codi llegit. Completa les dades.', 'warning');
     });
+}
+
+function extractContent(nom) {
+  if (!nom) return '';
+  var units = nom.match(/\d+\s*(comprimidos?|comprimits?|capsulas?|sobres?|viales?|ampollas?)/i);
+  if (units) return units[0].trim();
+  var ml = nom.match(/\d+[\.,]?\d*\s*(ml|l\b)/i);
+  if (ml) return ml[0].trim();
+  return '';
+}
+
+function askClaude(found) {
+  var ctx = '';
+  if (found.nregistro) ctx += 'CIMA nregistro: ' + found.nregistro + '. ';
+  if (found.name) ctx += 'Name: "' + found.name + '". ';
+  if (found.barcode) ctx += 'CN: ' + found.barcode + '. ';
+  var needsName = !found.name ? '1. Official name\n2. Active ingredient\n3. Manufacturer\n' : '';
+  var needsContent = !found.content ? '- Exact packaging size (e.g. "20 comprimidos", "500 ml")\n' : '';
+  var needsImg = !found.image ? '- Direct image URL of the medicine box\n' : '';
+  return fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content:
+        'Spanish medicine: ' + ctx +
+        'Search cima.aemps.es to find:\n' + needsName + needsContent +
+        '- Indications in CATALAN (2-3 sentences for a patient)\n' +
+        '- Dosage/how to use in CATALAN (2-3 sentences)\n' + needsImg +
+        'Respond ONLY JSON: {"name":"","principle":"","manufacturer":"","content":"","indications":"","usage":"","imageUrl":null}'
+      }]
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var text = (data.content || []).filter(function(c) { return c.type === 'text'; }).map(function(c) { return c.text; }).join('');
+    var match = text.replace(/```json|```/g, '').trim().match(/\{[\s\S]*\}/);
+    return match ? JSON.parse(match[0]) : null;
+  })
+  .catch(function() { return null; });
 }
 
 function fillForm(found) {
@@ -700,50 +757,14 @@ function fillForm(found) {
     document.getElementById('photo-preview').src = found.image;
     document.getElementById('photo-preview').style.display = 'block';
     document.getElementById('photo-ph').style.display = 'none';
-    fetch('https://corsproxy.io/?' + encodeURIComponent(found.image))
-      .then(function(r) { return r.blob(); })
-      .then(function(blob) {
-        var fr = new FileReader();
-        fr.onload = function(e) { document.getElementById('f-img').value = e.target.result; document.getElementById('photo-preview').src = e.target.result; };
-        fr.readAsDataURL(blob);
-      }).catch(function() {});
+    var proxyUrl = found.image.indexOf('cima.aemps.es') >= 0 ? found.image : 'https://corsproxy.io/?' + encodeURIComponent(found.image);
+    fetch(proxyUrl).then(function(r) { return r.blob(); }).then(function(blob) {
+      var fr = new FileReader();
+      fr.onload = function(e) { document.getElementById('f-img').value = e.target.result; document.getElementById('photo-preview').src = e.target.result; };
+      fr.readAsDataURL(blob);
+    }).catch(function() {});
   }
 }
-
-function askClaude(barcode, knownName) {
-  return fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514', max_tokens: 1000,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{ role: 'user', content: 'Code "' + barcode + '" is a Spanish medicine.' + (knownName ? ' Name may be: "' + knownName + '".' : '') + ' Search cima.aemps.es for: official name, active ingredient, manufacturer, content (e.g. "20 comprimidos"), indications in Catalan (2-3 sentences), how to use in Catalan (2-3 sentences), direct image URL. Respond ONLY JSON: {"name":"","principle":"","manufacturer":"","content":"","indications":"","usage":"","imageUrl":null}' }]
-    })
-  }).then(function(r) { return r.json(); })
-    .then(function(data) {
-      var text = (data.content || []).filter(function(c) { return c.type === 'text'; }).map(function(c) { return c.text; }).join('');
-      var match = text.replace(/```json|```/g, '').match(/\{[\s\S]*\}/);
-      return match ? JSON.parse(match[0]) : null;
-    }).catch(function() { return null; });
-}
-
-function fetchPhoto(name, barcode) {
-  return fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514', max_tokens: 300,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{ role: 'user', content: 'Find direct image URL for medicine box "' + name + '" barcode ' + barcode + '. Respond ONLY JSON: {"imageUrl":"..."}' }]
-    })
-  }).then(function(r) { return r.json(); })
-    .then(function(data) {
-      var text = (data.content || []).filter(function(c) { return c.type === 'text'; }).map(function(c) { return c.text; }).join('');
-      var match = text.match(/\{[\s\S]*\}/);
-      return match ? (JSON.parse(match[0]).imageUrl || null) : null;
-    }).catch(function() { return null; });
-}
-
 function openForm(id) {
   document.getElementById('f-id').value = id || '';
   document.getElementById('form-title').textContent = id ? 'Editar medicament' : 'Nou medicament';
